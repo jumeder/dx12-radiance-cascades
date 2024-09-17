@@ -25,3 +25,10 @@ inline D3D12_CPU_DESCRIPTOR_HANDLE operator+(D3D12_CPU_DESCRIPTOR_HANDLE left, u
     ret.ptr = left.ptr + right;
     return ret;
 }
+
+inline D3D12_GPU_DESCRIPTOR_HANDLE operator+(D3D12_GPU_DESCRIPTOR_HANDLE left, uint32_t right)
+{
+    D3D12_GPU_DESCRIPTOR_HANDLE ret;
+    ret.ptr = left.ptr + right;
+    return ret;
+}

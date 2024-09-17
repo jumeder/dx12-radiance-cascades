@@ -55,10 +55,10 @@ void Application::HandleInput()
     glfwGetCursorPos(m_window, &currMouseX, &currMouseY);
     if(glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS)
     {
-        const auto xdiff = currMouseX - m_lastMouseX;
-        const auto ydiff = currMouseY - m_lastMouseY;
-        m_camera.Pitch(-ydiff * m_cameraRotSpeed);
-        m_camera.Yaw(-xdiff * m_cameraRotSpeed);
+        const auto xdiff = m_lastMouseX - currMouseX;
+        const auto ydiff = m_lastMouseY - currMouseY;
+        m_camera.Pitch((float)ydiff * m_cameraRotSpeed);
+        m_camera.Yaw((float)xdiff * m_cameraRotSpeed);
     }
     m_lastMouseX = currMouseX;
     m_lastMouseY = currMouseY;

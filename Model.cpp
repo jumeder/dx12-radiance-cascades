@@ -38,6 +38,8 @@ Model::Model(const std::string& filepath, Device& device)
     m_indexBuffer = device.CreateIndexBuffer(indices);
     m_vertexCount = (uint32_t)vertices.size() / 3;
     m_indexCount = (uint32_t)indices.size();
+
+    m_blas = device.CreateBottomLevelAccelerationStructure(m_vertexBuffer, m_indexBuffer, m_vertexCount, m_indexCount);
 }
 
 void Model::Draw(const ComPtr<ID3D12GraphicsCommandList>& commandList)

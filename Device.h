@@ -34,6 +34,16 @@ struct Pipeline
     ComPtr<ID3D12PipelineState> State;
 };
 
+struct State
+{
+    ComPtr<ID3D12RootSignature> RootSignature;
+    ComPtr<ID3D12StateObject> Object;
+    ComPtr<ID3D12Resource> ShaderTable;
+    D3D12_GPU_VIRTUAL_ADDRESS_RANGE RayGenRange;
+    D3D12_GPU_VIRTUAL_ADDRESS_RANGE_AND_STRIDE RayHitRange;
+    D3D12_GPU_VIRTUAL_ADDRESS_RANGE_AND_STRIDE RayMissRange;
+};
+
 class Device
 {
 public:
@@ -43,25 +53,34 @@ public:
     ComPtr<IDXGISwapChain> CreateSwapChain(HWND window, uint32_t width, uint32_t height, uint32_t bufferCount);
     ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t size = 65536);
     ComPtr<ID3D12Resource> CreateTexture(DXGI_FORMAT format, uint16_t width, uint16_t height, uint16_t arraySize, D3D12_RESOURCE_STATES defaultState = D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
-    ComPtr<ID3D12Resource> CreateBuffer(uint64_t size, D3D12_RESOURCE_FLAGS = D3D12_RESOURCE_FLAG_NONE, bool staging = false);
+    ComPtr<ID3D12Resource> CreateBuffer(uint64_t size, D3D12_RESOURCE_STATES defaultState = D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAGS = D3D12_RESOURCE_FLAG_NONE, bool staging = false);
     VertexBuffer CreateVertexBuffer(const std::vector<float>& data);
     IndexBuffer CreateIndexBuffer(const std::vector<uint32_t>& data);
+
+    ComPtr<ID3D12Resource> CreateBottomLevelAccelerationStructure(const VertexBuffer& vertices, const IndexBuffer& indices, uint32_t vertexCount, uint32_t indexCount);
+    ComPtr<ID3D12Resource> CreateTopLevelAccelerationStructure(const ComPtr<ID3D12Resource>* blasData, uint64_t blasCount);
 
     Commands CreateGraphicsCommands();
     void SubmitGraphicsCommands(Commands&& commands);
 
-    D3D12_CPU_DESCRIPTOR_HANDLE CreateRenderTargetView(const ComPtr<ID3D12Resource> resource, DXGI_FORMAT format);
-    D3D12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(const ComPtr<ID3D12Resource> resource, DXGI_FORMAT format);
-    D3D12_CPU_DESCRIPTOR_HANDLE CreateShaderResourceView(const ComPtr<ID3D12Resource> resource);
+    D3D12_CPU_DESCRIPTOR_HANDLE CreateRenderTargetView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format);
+    D3D12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format);
+    D3D12_GPU_DESCRIPTOR_HANDLE CreateShaderResourceView(const ComPtr<ID3D12Resource> resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc);
+    D3D12_GPU_DESCRIPTOR_HANDLE CreateUnorderedAccessView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format);
 
     Pipeline CreateDrawingPipeline();
+    State CreateRayTracingPipeline();
 
     void SetResourceData(const ComPtr<ID3D12Resource>& resource, const void* data, uint64_t size);
+    void SetDescriptorHeaps(const ComPtr<ID3D12GraphicsCommandList>& commandList);
 
     void WaitIdle();
 
     operator ID3D12Device*() const { return m_device.Get(); }
     operator ID3D12CommandQueue*() const { return m_queue.Get(); }
+
+    static void PipelineBarrierUav(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& resource);
+    static void PipelineBarrierTransition(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
 
 private:
     ComPtr<ID3D12Device> m_device;
@@ -70,8 +89,9 @@ private:
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
     ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
     ComPtr<ID3D12DescriptorHeap> m_srvHeap;
-    D3D12_CPU_DESCRIPTOR_HANDLE m_rtvPos;
-    D3D12_CPU_DESCRIPTOR_HANDLE m_dsvPos;
+    uint32_t m_rtvPos = 0;
+    uint32_t m_dsvPos = 0;
+    uint32_t m_srvPos = 0;
 
     HANDLE m_submissionEvent;
 

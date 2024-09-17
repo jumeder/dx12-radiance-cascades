@@ -27,6 +27,13 @@ add_custom_command(
     VERBATIM
 )
 
+add_custom_command(
+    OUTPUT ${CMAKE_SOURCE_DIR}/Raytracing.h
+    DEPENDS Raytracing.hlsl
+    COMMAND ${DXC} /T lib_6_3 /Fh ${CMAKE_SOURCE_DIR}/Raytracing.h /Vn Raytracing ${CMAKE_SOURCE_DIR}/Raytracing.hlsl
+    VERBATIM
+)
+
 add_executable(dx12-radiance-cascades 
     main.cpp 
     Application.cpp 
@@ -35,6 +42,7 @@ add_executable(dx12-radiance-cascades
     Model.cpp
     Drawing.vs.h
     Drawing.ps.h
+    RayTracing.h
 )
 
 find_package(glfw3 CONFIG REQUIRED)

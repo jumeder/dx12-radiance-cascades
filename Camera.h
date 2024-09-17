@@ -57,12 +57,16 @@ public:
         return DirectX::XMMatrixTranslation(m_pos.m128_f32[0], m_pos.m128_f32[1], m_pos.m128_f32[2]);
     }
 
-    inline DirectX::XMMATRIX GetViewProjection() const
+    inline DirectX::XMMATRIX GetTransform() const
     {
         const auto rotation = GetRotation();
         const auto translation = GetTranslation();
-        const auto cameraMatrix = DirectX::XMMatrixMultiply(rotation, translation);
-        return DirectX::XMMatrixMultiply(DirectX::XMMatrixInverse(nullptr, cameraMatrix), m_projection);
+        return DirectX::XMMatrixMultiply(rotation, translation);
+    }
+
+    inline DirectX::XMMATRIX GetViewProjection() const
+    {       
+        return DirectX::XMMatrixMultiply(DirectX::XMMatrixInverse(nullptr, GetTransform()), m_projection);
     }
 
 private:
