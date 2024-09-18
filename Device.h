@@ -58,20 +58,20 @@ public:
     IndexBuffer CreateIndexBuffer(const std::vector<uint32_t>& data);
 
     ComPtr<ID3D12Resource> CreateBottomLevelAccelerationStructure(const VertexBuffer& vertices, const IndexBuffer& indices, uint32_t vertexCount, uint32_t indexCount);
-    ComPtr<ID3D12Resource> CreateTopLevelAccelerationStructure(const ComPtr<ID3D12Resource>* blasData, uint64_t blasCount);
+    ComPtr<ID3D12Resource> CreateTopLevelAccelerationStructure(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& instanceBuffer, uint32_t count);
 
     Commands CreateGraphicsCommands();
     void SubmitGraphicsCommands(Commands&& commands);
 
     D3D12_CPU_DESCRIPTOR_HANDLE CreateRenderTargetView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format);
     D3D12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format);
-    D3D12_GPU_DESCRIPTOR_HANDLE CreateShaderResourceView(const ComPtr<ID3D12Resource> resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc);
-    D3D12_GPU_DESCRIPTOR_HANDLE CreateUnorderedAccessView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format);
+    D3D12_GPU_DESCRIPTOR_HANDLE CreateShaderResourceView(const ComPtr<ID3D12Resource> resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc, D3D12_GPU_DESCRIPTOR_HANDLE oldHandle = {});
+    D3D12_GPU_DESCRIPTOR_HANDLE CreateUnorderedAccessView(const ComPtr<ID3D12Resource>& resource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc);
 
     Pipeline CreateDrawingPipeline();
     State CreateRayTracingPipeline();
+    State CreateCascadeTracingPipeline();
 
-    void SetResourceData(const ComPtr<ID3D12Resource>& resource, const void* data, uint64_t size);
     void SetDescriptorHeaps(const ComPtr<ID3D12GraphicsCommandList>& commandList);
 
     void WaitIdle();
@@ -82,7 +82,15 @@ public:
     static void PipelineBarrierUav(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& resource);
     static void PipelineBarrierTransition(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
 
+    template<typename T>
+    static void SetResourceData(const ComPtr<ID3D12Resource>& resource, const T& data, uint64_t count = 1)
+    {
+        SetResourceDataInternal(resource, &data, sizeof(T) * count);
+    }
+
 private:
+    static void SetResourceDataInternal(const ComPtr<ID3D12Resource>& resource, const void* data, uint64_t size);
+
     ComPtr<ID3D12Device> m_device;
     ComPtr<ID3D12CommandQueue> m_queue;
     ComPtr<ID3D12Fence> m_submissionFence;
@@ -104,4 +112,7 @@ private:
     std::deque<PendingCommands> m_pendingCommands;
     std::vector<ComPtr<ID3D12CommandAllocator>> m_freeAllocators;
     uint64_t m_submissionCounter = 0;
+
+    ComPtr<ID3D12Resource> m_tlasScratch;
+    uint64_t m_tlasScratchSize = 0;
 };

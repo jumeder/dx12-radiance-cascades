@@ -5,6 +5,10 @@
 #include <GLFW/glfw3native.h>
 
 #include "Renderer.h"
+#include "Camera.h"
+
+class Scene;
+class Model;
 
 class Application
 {
@@ -21,9 +25,13 @@ private:
     std::unique_ptr<Renderer> m_renderer;
     Camera m_camera;
 
+    std::unique_ptr<Model> m_sponza;
+    std::unique_ptr<Model> m_sphere;
+    std::unique_ptr<Scene> m_scene;
+
     bool m_mouseDown = false;
     double m_lastMouseX = 0.f;
     double m_lastMouseY = 0.f;
-    float m_cameraMoveSpeed = 10.f;
+    float m_cameraMoveSpeed = 0.1f;
     float m_cameraRotSpeed = 0.01f;
 };

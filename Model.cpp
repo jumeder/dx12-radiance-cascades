@@ -42,8 +42,9 @@ Model::Model(const std::string& filepath, Device& device)
     m_blas = device.CreateBottomLevelAccelerationStructure(m_vertexBuffer, m_indexBuffer, m_vertexCount, m_indexCount);
 }
 
-void Model::Draw(const ComPtr<ID3D12GraphicsCommandList>& commandList)
+void Model::Draw(const ComPtr<ID3D12GraphicsCommandList>& commandList, uint32_t instanceId) const
 {
+    commandList->SetGraphicsRoot32BitConstant(2, instanceId, 0);
     std::array vertexBufferViews = {m_vertexBuffer.View, m_normalBuffer.View};
     commandList->IASetVertexBuffers(0, (UINT)vertexBufferViews.size(), vertexBufferViews.data());
     commandList->IASetIndexBuffer(&m_indexBuffer.View);

@@ -3,6 +3,7 @@
 #include "Drawing.vs.h"
 #include "Drawing.ps.h"
 #include "Raytracing.h"
+#include "CascadeTracing.h"
 
 namespace
 {
@@ -33,7 +34,6 @@ Device::Device()
     m_srvHeap = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     m_rtvHeap = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 128);
     m_dsvHeap = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 128);
-    // TODO srvs
 }
 
 Device::~Device()
@@ -133,7 +133,7 @@ VertexBuffer Device::CreateVertexBuffer(const std::vector<float>& data)
     const auto stagingBuffer = CreateBuffer(dataSize, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_NONE, true);
     const auto gpuBuffer = CreateBuffer(dataSize);
 
-    SetResourceData(stagingBuffer, data.data(), dataSize);
+    SetResourceData(stagingBuffer, *data.data(), data.size());
 
     auto commands = CreateGraphicsCommands();
     commands.List->CopyResource(gpuBuffer.Get(), stagingBuffer.Get());
@@ -156,7 +156,7 @@ IndexBuffer Device::CreateIndexBuffer(const std::vector<uint32_t>& data)
     const auto stagingBuffer = CreateBuffer(dataSize, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_NONE, true);
     const auto gpuBuffer = CreateBuffer(dataSize);
 
-    SetResourceData(stagingBuffer, data.data(), dataSize);
+    SetResourceData(stagingBuffer, *data.data(), data.size());
 
     auto commands = CreateGraphicsCommands();
     commands.List->CopyResource(gpuBuffer.Get(), stagingBuffer.Get());
@@ -214,6 +214,8 @@ ComPtr<ID3D12Resource> Device::CreateBottomLevelAccelerationStructure(const Vert
     assert(commandList);
 
     commandList->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
+
+    // TODO this barrier is unnecessary as every submit is fenced
     D3D12_RESOURCE_BARRIER barr;
     barr.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
     barr.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -227,24 +229,9 @@ ComPtr<ID3D12Resource> Device::CreateBottomLevelAccelerationStructure(const Vert
     return ret;
 
 }
-ComPtr<ID3D12Resource> Device::CreateTopLevelAccelerationStructure(const ComPtr<ID3D12Resource>* blasData, uint64_t blasCount)
+
+ComPtr<ID3D12Resource> Device::CreateTopLevelAccelerationStructure(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& instanceBuffer, uint32_t instanceCount)
 {
-    std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instances(blasCount);
-    DirectX::XMMATRIX identity = DirectX::XMMatrixIdentity();
-    for(auto i = 0u; i < blasCount; ++i)
-    {
-        auto& instance = instances[i];
-        instance.AccelerationStructure = blasData[i]->GetGPUVirtualAddress();
-        instance.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE;
-        instance.InstanceContributionToHitGroupIndex = 0;
-        instance.InstanceID = i;
-        instance.InstanceMask = 0xFF;
-        std::memcpy(instance.Transform, &identity, sizeof(instance.Transform));
-    }
-
-    const auto instanceBuffer = CreateBuffer(sizeof(D3D12_RAYTRACING_INSTANCE_DESC), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_NONE, true);
-    SetResourceData(instanceBuffer, instances.data(), instances.size() * sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
-
     ComPtr<ID3D12Device5> device;
     m_device.As(&device);
     assert(device);
@@ -254,34 +241,38 @@ ComPtr<ID3D12Resource> Device::CreateTopLevelAccelerationStructure(const ComPtr<
     inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
     inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
     inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
-    inputs.NumDescs = 1;
+    inputs.NumDescs = instanceCount;
     inputs.InstanceDescs = instanceBuffer->GetGPUVirtualAddress();
     device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
 
-    const auto scratch = CreateBuffer(roundUp(info.ScratchDataSizeInBytes, 256), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+    const auto scratchSize = roundUp(info.ScratchDataSizeInBytes, 256);
+    if(scratchSize > m_tlasScratchSize)
+    {
+        m_tlasScratch = CreateBuffer(scratchSize, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+        m_tlasScratchSize = scratchSize;
+    }
+
+    // TODO can we optimize this allocation?
     const auto ret = CreateBuffer(roundUp(info.ResultDataMaxSizeInBytes, 256), D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS); 
 
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
     buildDesc.Inputs = inputs;
     buildDesc.DestAccelerationStructureData = ret->GetGPUVirtualAddress();
-    buildDesc.ScratchAccelerationStructureData = scratch->GetGPUVirtualAddress();
+    buildDesc.ScratchAccelerationStructureData = m_tlasScratch->GetGPUVirtualAddress();
     buildDesc.SourceAccelerationStructureData = 0;
 
-    auto commands = CreateGraphicsCommands();
-    ComPtr<ID3D12GraphicsCommandList4> commandList;
-    commands.List.As(&commandList);
-    assert(commandList);
+    ComPtr<ID3D12GraphicsCommandList4> commandList4;
+    commandList.As(&commandList4);
+    assert(commandList4);
 
-    commandList->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
+    commandList4->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
+
+    // TODO this barrier is unnecessary if our submit is fenced
     D3D12_RESOURCE_BARRIER barr;
     barr.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
     barr.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
     barr.UAV.pResource = ret.Get();
     commandList->ResourceBarrier(1, &barr);
-
-    SubmitGraphicsCommands(std::move(commands));
-
-    WaitIdle();
 
     return ret;
 }
@@ -300,6 +291,7 @@ Commands Device::CreateGraphicsCommands()
     }
     commands.Allocator->Reset();
     m_device->CreateCommandList(0b1, D3D12_COMMAND_LIST_TYPE_DIRECT, commands.Allocator.Get(), nullptr, IID_PPV_ARGS(&commands.List));
+    SetDescriptorHeaps(commands.List);
     return commands;
 }
 
@@ -339,7 +331,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE Device::CreateRenderTargetView(const ComPtr<ID3D12Re
 
 D3D12_CPU_DESCRIPTOR_HANDLE Device::CreateDepthStencilView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format)
 {
-    D3D12_CPU_DESCRIPTOR_HANDLE handle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart() + m_dsvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);;
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart() + m_dsvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     ++m_dsvPos;
 
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
@@ -352,28 +344,36 @@ D3D12_CPU_DESCRIPTOR_HANDLE Device::CreateDepthStencilView(const ComPtr<ID3D12Re
     return handle;
 }
 
-D3D12_GPU_DESCRIPTOR_HANDLE Device::CreateShaderResourceView(const ComPtr<ID3D12Resource> resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc)
+D3D12_GPU_DESCRIPTOR_HANDLE Device::CreateShaderResourceView(const ComPtr<ID3D12Resource> resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc, D3D12_GPU_DESCRIPTOR_HANDLE oldHandle)
 {
-    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_srvHeap->GetCPUDescriptorHandleForHeapStart() + m_srvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_srvHeap->GetGPUDescriptorHandleForHeapStart() + m_srvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    ++m_srvPos;
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle; 
+
+    if (oldHandle.ptr)
+    {
+        const auto pos = (oldHandle.ptr - m_srvHeap->GetGPUDescriptorHandleForHeapStart().ptr) / m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        cpuHandle = m_srvHeap->GetCPUDescriptorHandleForHeapStart() + (uint32_t)pos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        gpuHandle = oldHandle;
+    }
+    else
+    {
+        cpuHandle = m_srvHeap->GetCPUDescriptorHandleForHeapStart() + m_srvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        gpuHandle = m_srvHeap->GetGPUDescriptorHandleForHeapStart() + m_srvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        ++m_srvPos;
+    }
+
     m_device->CreateShaderResourceView(desc.ViewDimension == D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE ? nullptr : resource.Get(), &desc, cpuHandle);
 
     return gpuHandle;
 }
 
-D3D12_GPU_DESCRIPTOR_HANDLE Device::CreateUnorderedAccessView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format)
+D3D12_GPU_DESCRIPTOR_HANDLE Device::CreateUnorderedAccessView(const ComPtr<ID3D12Resource>& resource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc)
 {
     D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_srvHeap->GetCPUDescriptorHandleForHeapStart() + m_srvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_srvHeap->GetGPUDescriptorHandleForHeapStart() + m_srvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     ++m_srvPos;
 
-    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc;
-    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    uavDesc.Format = format;
-    uavDesc.Texture2D.MipSlice = 0;
-    uavDesc.Texture2D.PlaneSlice = 0;
-    m_device->CreateUnorderedAccessView(resource.Get(), nullptr, &uavDesc, cpuHandle);
+    m_device->CreateUnorderedAccessView(resource.Get(), nullptr, &desc, cpuHandle);
 
     return gpuHandle;
 }
@@ -392,11 +392,30 @@ Pipeline Device::CreateDrawingPipeline()
     cameraConstants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     cameraConstants.Descriptor.RegisterSpace = 0;
     cameraConstants.Descriptor.ShaderRegister = 0;
+    D3D12_DESCRIPTOR_RANGE instancesRange;
+    instancesRange.BaseShaderRegister = 0;
+    instancesRange.NumDescriptors = 1;
+    instancesRange.OffsetInDescriptorsFromTableStart = 0;
+    instancesRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    instancesRange.RegisterSpace = 0;
+    D3D12_ROOT_PARAMETER instances;
+    instances.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    instances.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    instances.DescriptorTable.NumDescriptorRanges = 1;
+    instances.DescriptorTable.pDescriptorRanges = &instancesRange;
+    D3D12_ROOT_PARAMETER objectConstants;
+    objectConstants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    objectConstants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    objectConstants.Constants.Num32BitValues = 1;
+    objectConstants.Constants.RegisterSpace = 0;
+    objectConstants.Constants.ShaderRegister = 1;
+    std::array parameters = {cameraConstants, instances, objectConstants};
+
     D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-    rootSignatureDesc.NumParameters = 1;
+    rootSignatureDesc.NumParameters = (UINT)parameters.size();
     rootSignatureDesc.NumStaticSamplers = 0;
-    rootSignatureDesc.pParameters = &cameraConstants;
+    rootSignatureDesc.pParameters = parameters.data();
     rootSignatureDesc.pStaticSamplers = nullptr;
     D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, nullptr);
     assert(blob);
@@ -510,7 +529,19 @@ State Device::CreateRayTracingPipeline()
     accelerationStructure.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     accelerationStructure.DescriptorTable.NumDescriptorRanges = 1;
     accelerationStructure.DescriptorTable.pDescriptorRanges = &as;
-    
+
+    D3D12_DESCRIPTOR_RANGE instanceRange;
+    instanceRange.BaseShaderRegister = 1;
+    instanceRange.NumDescriptors = 1;
+    instanceRange.OffsetInDescriptorsFromTableStart = 0;
+    instanceRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    instanceRange.RegisterSpace = 0;
+    D3D12_ROOT_PARAMETER instances;
+    instances.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    instances.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    instances.DescriptorTable.NumDescriptorRanges = 1;
+    instances.DescriptorTable.pDescriptorRanges = &instanceRange;
+
     D3D12_DESCRIPTOR_RANGE uav;
     uav.BaseShaderRegister = 0;
     uav.NumDescriptors = 1;
@@ -523,7 +554,7 @@ State Device::CreateRayTracingPipeline()
     renderTarget.DescriptorTable.NumDescriptorRanges = 1;
     renderTarget.DescriptorTable.pDescriptorRanges = &uav;
 
-    std::array parameters = {raytracingConstants, accelerationStructure, renderTarget};
+    std::array parameters = {raytracingConstants, accelerationStructure, instances, renderTarget};
     
     D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
@@ -593,13 +624,146 @@ State Device::CreateRayTracingPipeline()
     std::memcpy(shaderIds.data(), rayGenId, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
     std::memcpy(shaderIds.data() + D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, rayMissId, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
     std::memcpy(shaderIds.data() + D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT * 2, rayHitId, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-    SetResourceData(ret.ShaderTable, shaderIds.data(), shaderTableSize);
+    SetResourceData(ret.ShaderTable, *shaderIds.data(), shaderTableSize);
+
+    return ret;
+}
+
+State Device::CreateCascadeTracingPipeline()
+{
+    ComPtr<ID3D12Device5> device;
+    m_device.As(&device);
+    assert(device);
+
+    State ret;
+
+    ComPtr<ID3DBlob> blob;
+    D3D12_ROOT_PARAMETER constants;
+    constants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    constants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    constants.Constants.Num32BitValues = 1;
+    constants.Constants.RegisterSpace = 0;
+    constants.Constants.ShaderRegister = 0;
+
+    D3D12_ROOT_PARAMETER cascadeConstants;
+    cascadeConstants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    cascadeConstants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    cascadeConstants.Descriptor.RegisterSpace = 0;
+    cascadeConstants.Descriptor.ShaderRegister = 1;
+
+    D3D12_DESCRIPTOR_RANGE as;
+    as.BaseShaderRegister = 0;
+    as.NumDescriptors = 1;
+    as.OffsetInDescriptorsFromTableStart = 0;
+    as.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    as.RegisterSpace = 0;
+    D3D12_ROOT_PARAMETER accelerationStructure;
+    accelerationStructure.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    accelerationStructure.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    accelerationStructure.DescriptorTable.NumDescriptorRanges = 1;
+    accelerationStructure.DescriptorTable.pDescriptorRanges = &as;
+
+    D3D12_DESCRIPTOR_RANGE instanceRange;
+    instanceRange.BaseShaderRegister = 1;
+    instanceRange.NumDescriptors = 1;
+    instanceRange.OffsetInDescriptorsFromTableStart = 0;
+    instanceRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    instanceRange.RegisterSpace = 0;
+    D3D12_ROOT_PARAMETER instances;
+    instances.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    instances.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    instances.DescriptorTable.NumDescriptorRanges = 1;
+    instances.DescriptorTable.pDescriptorRanges = &instanceRange;
+
+    D3D12_DESCRIPTOR_RANGE cascadesRange;
+    cascadesRange.BaseShaderRegister = 0;
+    cascadesRange.NumDescriptors = 1;
+    cascadesRange.OffsetInDescriptorsFromTableStart = 0;
+    cascadesRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    cascadesRange.RegisterSpace = 0;
+    D3D12_ROOT_PARAMETER cascades;
+    cascades.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    cascades.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    cascades.DescriptorTable.NumDescriptorRanges = 1;
+    cascades.DescriptorTable.pDescriptorRanges = &cascadesRange;
+
+    std::array parameters = {constants, cascadeConstants, accelerationStructure, instances, cascades};
+    
+    D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+    rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+    rootSignatureDesc.NumParameters = (UINT)parameters.size();
+    rootSignatureDesc.NumStaticSamplers = 0;
+    rootSignatureDesc.pParameters = parameters.data();
+    rootSignatureDesc.pStaticSamplers = nullptr;
+    D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, nullptr);
+    assert(blob);
+    device->CreateRootSignature(0b1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&ret.RootSignature));
+
+    std::vector<D3D12_STATE_SUBOBJECT> subobjects;
+    subobjects.reserve(10);
+
+    D3D12_EXPORT_DESC rayGen = {L"RayGen", nullptr, D3D12_EXPORT_FLAG_NONE};
+    D3D12_EXPORT_DESC rayHit = {L"RayHit", nullptr, D3D12_EXPORT_FLAG_NONE};
+    D3D12_EXPORT_DESC rayMiss = {L"RayMiss", nullptr, D3D12_EXPORT_FLAG_NONE};
+    std::array exports = {rayGen, rayHit, rayMiss};
+    D3D12_DXIL_LIBRARY_DESC rayLibraryDesc;
+    rayLibraryDesc.DXILLibrary = {CascadeTracing, sizeof(CascadeTracing)};
+    rayLibraryDesc.NumExports = (UINT)exports.size();
+    rayLibraryDesc.pExports = exports.data();
+    subobjects.push_back({D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY, &rayLibraryDesc});
+
+    D3D12_HIT_GROUP_DESC hitGroup = {};
+    hitGroup.ClosestHitShaderImport = L"RayHit";
+    hitGroup.HitGroupExport = L"HitGroup";
+    hitGroup.Type = D3D12_HIT_GROUP_TYPE_TRIANGLES;
+    subobjects.push_back({D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP, &hitGroup});
+
+    D3D12_RAYTRACING_SHADER_CONFIG sc;
+    sc.MaxAttributeSizeInBytes = 2 * sizeof(float);
+    sc.MaxPayloadSizeInBytes = 4 * sizeof(float);
+    subobjects.push_back({D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG, &sc});
+
+    D3D12_GLOBAL_ROOT_SIGNATURE globalRootSig;
+    globalRootSig.pGlobalRootSignature = ret.RootSignature.Get();
+    subobjects.push_back({D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE, &globalRootSig});
+
+    D3D12_RAYTRACING_PIPELINE_CONFIG pc;
+    pc.MaxTraceRecursionDepth = 1;
+    subobjects.push_back({D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG, &pc});
+
+    D3D12_STATE_OBJECT_DESC stateDesc;
+    stateDesc.NumSubobjects = (UINT)subobjects.size();
+    stateDesc.pSubobjects = subobjects.data();
+    stateDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
+
+    auto r = device->CreateStateObject(&stateDesc, IID_PPV_ARGS(&ret.Object));
+    assert(ret.Object);
+
+    ComPtr<ID3D12StateObjectProperties> stateObjectProperties;
+    ret.Object.As(&stateObjectProperties);
+    assert(stateObjectProperties);
+
+    const auto rayGenId = stateObjectProperties->GetShaderIdentifier(L"RayGen");
+    const auto rayMissId = stateObjectProperties->GetShaderIdentifier(L"RayMiss");
+    const auto rayHitId = stateObjectProperties->GetShaderIdentifier(L"HitGroup");
+
+    const auto shaderTableSize = 3 * D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT;
+    ret.ShaderTable = CreateBuffer(shaderTableSize, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_NONE, true);
+    ret.RayGenRange = {ret.ShaderTable->GetGPUVirtualAddress(), D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT};
+    ret.RayMissRange = {ret.ShaderTable->GetGPUVirtualAddress() + D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT};
+    ret.RayHitRange = {ret.ShaderTable->GetGPUVirtualAddress() + D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT * 2, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT};
+
+    std::vector<uint8_t> shaderIds(shaderTableSize);
+    std::memcpy(shaderIds.data(), rayGenId, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+    std::memcpy(shaderIds.data() + D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, rayMissId, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+    std::memcpy(shaderIds.data() + D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT * 2, rayHitId, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+    SetResourceData(ret.ShaderTable, *shaderIds.data(), shaderTableSize);
 
     return ret;
 }
 
 // TODO make this into a type dependend template
-void Device::SetResourceData(const ComPtr<ID3D12Resource>& resource, const void* data, uint64_t size)
+void Device::SetResourceDataInternal(const ComPtr<ID3D12Resource>& resource, const void* data, uint64_t size)
 {
     void* resourcePtr = nullptr;
     resource->Map(0, nullptr, &resourcePtr);

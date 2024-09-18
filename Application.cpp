@@ -1,4 +1,6 @@
-#include "application.h"
+#include "Application.h"
+#include "Model.h"
+#include "Scene.h"
 
 Application::Application(uint32_t width, uint32_t height)
     : m_camera((float)M_PI / 2, (float)width / height, 0.1f)
@@ -9,7 +11,16 @@ Application::Application(uint32_t width, uint32_t height)
     m_window = glfwCreateWindow(width, height, "dx12-radiance-casccades", nullptr, nullptr);
     m_renderer = std::make_unique<Renderer>(glfwGetWin32Window(m_window), width, height);
 
-    m_camera.SetPosition(0, 0.1f, 500.f);
+    m_camera.SetPosition(0, 0.5f, 0.f);
+
+    m_sponza = std::make_unique<Model>("d:\\Scenes\\Test\\Sponza.fbx", m_renderer->GetDevice());
+    m_sphere = std::make_unique<Model>("d:\\Scenes\\Test\\Sphere.glb", m_renderer->GetDevice());
+
+    const auto sphereTransform = DirectX::XMMatrixMultiply(DirectX::XMMatrixScaling(0.005f, 0.005f, 0.005f), DirectX::XMMatrixTranslation(2.f, 1.f, 0));
+
+    m_scene = std::make_unique<Scene>(m_renderer->GetDevice());
+    m_scene->AddInstance(*m_sponza, DirectX::XMMatrixScaling(0.01f, 0.01f, 0.01f), DirectX::XMVECTOR{0.f, 0.5f, 0.5f, 1.f}, DirectX::XMVECTOR{0.f, 1.f, 0.f, 1.f});
+    m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{1.f, 1.f, 1.f, 1.f});
 }
 
 Application::~Application()
@@ -24,7 +35,7 @@ void Application::Run()
         glfwPollEvents();
         HandleInput();
 
-        m_renderer->Render(m_camera);
+        m_renderer->Render(m_camera, *m_scene);
     }
 }
 

@@ -7,7 +7,7 @@ class Model
 public:
     Model(const std::string& filepath, Device& device);
 
-    void Draw(const ComPtr<ID3D12GraphicsCommandList>& commandList);
+    void Draw(const ComPtr<ID3D12GraphicsCommandList>& commandList, uint32_t instanceId = 0) const;
 
     inline auto& GetBLAS() const { return m_blas; }
 

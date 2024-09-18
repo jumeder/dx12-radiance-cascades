@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5.0)
 
 set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake)
 include(${CMAKE_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake)
+include(${CMAKE_SOURCE_DIR}/shaders.cmake)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
@@ -11,38 +12,23 @@ set(CMAKE_CXX_STANDARD 17)
 
 project(dx12-radiance-cascades VERSION 0.1.0 LANGUAGES C CXX)
 
-find_program(DXC dxc.exe)
+add_shader(Drawing.vs.hlsl vs_6_0 Drawing.vs.h DrawingVS)
+add_shader(Drawing.ps.hlsl ps_6_0 Drawing.ps.h DrawingPS)
+add_shader(Raytracing.hlsl lib_6_3 Raytracing.h Raytracing)
+add_shader(CascadeTracing.hlsl lib_6_3 CascadeTracing.h CascadeTracing)
 
-add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/Drawing.vs.h
-    MAIN_DEPENDENCY Drawing.vs.hlsl
-    COMMAND ${DXC} /T vs_6_0 /Fh ${CMAKE_SOURCE_DIR}/Drawing.vs.h /Vn DrawingVS ${CMAKE_SOURCE_DIR}/Drawing.vs.hlsl
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/Drawing.ps.h
-    DEPENDS Drawing.ps.hlsl
-    COMMAND ${DXC} /T ps_6_0 /Fh ${CMAKE_SOURCE_DIR}/Drawing.ps.h /Vn DrawingPS ${CMAKE_SOURCE_DIR}/Drawing.ps.hlsl
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/Raytracing.h
-    DEPENDS Raytracing.hlsl
-    COMMAND ${DXC} /T lib_6_3 /Fh ${CMAKE_SOURCE_DIR}/Raytracing.h /Vn Raytracing ${CMAKE_SOURCE_DIR}/Raytracing.hlsl
-    VERBATIM
-)
-
-add_executable(dx12-radiance-cascades 
+add_executable(dx12-radiance-cascades
     main.cpp 
     Application.cpp 
     Renderer.cpp 
     Device.cpp 
     Model.cpp
+    RadianceCascades.cpp
+    Scene.cpp
     Drawing.vs.h
     Drawing.ps.h
     RayTracing.h
+    CascadeTracing.h
 )
 
 find_package(glfw3 CONFIG REQUIRED)
