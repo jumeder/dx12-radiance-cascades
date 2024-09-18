@@ -71,6 +71,7 @@ public:
     Pipeline CreateDrawingPipeline();
     State CreateRayTracingPipeline();
     State CreateCascadeTracingPipeline();
+    Pipeline CreateCascadeDebugPipeline();
 
     void SetDescriptorHeaps(const ComPtr<ID3D12GraphicsCommandList>& commandList);
 

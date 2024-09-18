@@ -50,3 +50,11 @@ void Model::Draw(const ComPtr<ID3D12GraphicsCommandList>& commandList, uint32_t 
     commandList->IASetIndexBuffer(&m_indexBuffer.View);
     commandList->DrawIndexedInstanced(m_indexCount, 1, 0, 0, 0);
 }
+
+void Model::DrawInstanced(const ComPtr<ID3D12GraphicsCommandList>& commandList, uint32_t instanceCount) const
+{
+    std::array vertexBufferViews = {m_vertexBuffer.View, m_normalBuffer.View};
+    commandList->IASetVertexBuffers(0, (UINT)vertexBufferViews.size(), vertexBufferViews.data());
+    commandList->IASetIndexBuffer(&m_indexBuffer.View);
+    commandList->DrawIndexedInstanced(m_indexCount, instanceCount, 0, 0, 0);
+}

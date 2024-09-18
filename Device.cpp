@@ -4,6 +4,8 @@
 #include "Drawing.ps.h"
 #include "Raytracing.h"
 #include "CascadeTracing.h"
+#include "DebugCascades.vs.h"
+#include "DebugCascades.ps.h"
 
 namespace
 {
@@ -482,6 +484,110 @@ Pipeline Device::CreateDrawingPipeline()
     streamDesc.InputLayout.desc = {vertexInputs.data(), (UINT)vertexInputs.size()};
     streamDesc.VS.desc = { DrawingVS, sizeof(DrawingVS) };
     streamDesc.PS.desc = { DrawingPS, sizeof(DrawingPS) };
+    streamDesc.RootSignature.desc = ret.RootSignature.Get();
+    streamDesc.RenderTargets.desc = {};
+    streamDesc.RenderTargets.desc.NumRenderTargets = 1;
+    streamDesc.RenderTargets.desc.RTFormats[0] = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+    streamDesc.DepthStencil.desc.DepthEnable = TRUE;
+    streamDesc.DepthStencil.desc.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
+    streamDesc.DepthStencil.desc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+    streamDesc.DepthStencil.desc.StencilEnable = FALSE;
+    streamDesc.DepthFormat.desc = DXGI_FORMAT_D32_FLOAT;
+    streamDesc.Rasterizer.desc = {};
+    streamDesc.Rasterizer.desc.FillMode = D3D12_FILL_MODE_SOLID;
+    streamDesc.Rasterizer.desc.CullMode = D3D12_CULL_MODE_NONE;
+    D3D12_PIPELINE_STATE_STREAM_DESC stateDesc;
+    stateDesc.pPipelineStateSubobjectStream = &streamDesc;
+    stateDesc.SizeInBytes = sizeof(streamDesc);
+    device->CreatePipelineState(&stateDesc, IID_PPV_ARGS(&ret.State));
+    assert(ret.State);
+
+    return ret;
+}
+
+Pipeline Device::CreateCascadeDebugPipeline()
+{
+    ComPtr<ID3D12Device5> device;
+    m_device.As(&device);
+    assert(device);
+
+    Pipeline ret;
+
+    ComPtr<ID3DBlob> blob;
+    D3D12_ROOT_PARAMETER constants;
+    constants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    constants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    constants.Descriptor.RegisterSpace = 0;
+    constants.Descriptor.ShaderRegister = 1;
+    std::array parameters = {constants};
+
+    D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+    rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+    rootSignatureDesc.NumParameters = (UINT)parameters.size();
+    rootSignatureDesc.NumStaticSamplers = 0;
+    rootSignatureDesc.pParameters = parameters.data();
+    rootSignatureDesc.pStaticSamplers = nullptr;
+    D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, nullptr);
+    assert(blob);
+
+    device->CreateRootSignature(0b1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&ret.RootSignature));
+
+    struct
+    {
+        struct alignas(void*)
+        {
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_INPUT_LAYOUT;
+            D3D12_INPUT_LAYOUT_DESC desc;
+        } InputLayout;
+        struct alignas(void*)
+        {
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_VS;
+            D3D12_SHADER_BYTECODE desc;
+        } VS;
+        struct alignas(void*)
+        {
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PS;
+            D3D12_SHADER_BYTECODE desc;
+        } PS;
+        struct alignas(void*)
+        {
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE;
+            ID3D12RootSignature* desc;
+        } RootSignature;
+        struct alignas(void*)
+        {
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RENDER_TARGET_FORMATS;
+            D3D12_RT_FORMAT_ARRAY desc;
+        } RenderTargets;
+        struct alignas(void*)
+        {
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL;
+            D3D12_DEPTH_STENCIL_DESC desc;
+        } DepthStencil;
+        struct alignas(void*)
+        {
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT;
+            DXGI_FORMAT desc;
+        } DepthFormat;
+        struct alignas(void*)
+        {
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER;
+            D3D12_RASTERIZER_DESC desc;
+        } Rasterizer;
+    } streamDesc;
+
+    D3D12_INPUT_ELEMENT_DESC position;
+    position.AlignedByteOffset = 0;
+    position.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+    position.InputSlot = 0;
+    position.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+    position.InstanceDataStepRate = 0;
+    position.SemanticIndex = 0;
+    position.SemanticName = "Position";
+    std::array vertexInputs = {position};
+    streamDesc.InputLayout.desc = {vertexInputs.data(), (UINT)vertexInputs.size()};
+    streamDesc.VS.desc = { DebugCascadesVS, sizeof(DebugCascadesVS) };
+    streamDesc.PS.desc = { DebugCascadesPS, sizeof(DebugCascadesPS) };
     streamDesc.RootSignature.desc = ret.RootSignature.Get();
     streamDesc.RenderTargets.desc = {};
     streamDesc.RenderTargets.desc.NumRenderTargets = 1;

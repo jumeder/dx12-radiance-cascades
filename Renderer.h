@@ -5,6 +5,7 @@
 
 class Camera;
 class Scene;
+class Model;
 
 class Renderer
 {
@@ -42,4 +43,8 @@ private:
     uint64_t m_frameCounter = 0;
     uint32_t m_width = 0;
     uint32_t m_height = 0;
+
+    std::unique_ptr<Model> m_debugSphere;
+    Pipeline m_debugCascadesPipeline;
+    ComPtr<ID3D12Resource> m_debugCascadesConstants;
 };

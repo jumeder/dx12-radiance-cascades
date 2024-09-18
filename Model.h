@@ -8,6 +8,7 @@ public:
     Model(const std::string& filepath, Device& device);
 
     void Draw(const ComPtr<ID3D12GraphicsCommandList>& commandList, uint32_t instanceId = 0) const;
+    void DrawInstanced(const ComPtr<ID3D12GraphicsCommandList>& commandList, uint32_t instanceCount) const;
 
     inline auto& GetBLAS() const { return m_blas; }
 

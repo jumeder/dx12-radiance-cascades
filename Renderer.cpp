@@ -3,7 +3,7 @@
 #include "Scene.h"
 
 Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
-    : m_radianceCascades(m_device, {16, 16, 16}, 5)
+    : m_radianceCascades(m_device, {16, 16, 16}, 5, 0.5f)
     , m_width(width)
     , m_height(height)
 {
@@ -19,6 +19,10 @@ Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
     
     m_drawingPipeline = m_device.CreateDrawingPipeline();
     m_cameraConstants = m_device.CreateBuffer(256, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_NONE, true);
+
+    m_debugSphere = std::make_unique<Model>("d:\\Scenes\\Test\\Sphere.glb", m_device);
+    m_debugCascadesPipeline = m_device.CreateCascadeDebugPipeline();
+    m_debugCascadesConstants = m_device.CreateBuffer(256, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_NONE, true);
 
 #if 0
     m_raytracingPipeline = m_device.CreateRayTracingPipeline();
@@ -131,6 +135,26 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     commands.List->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     scene.Draw(commands.List);
+
+    struct
+    {
+        DirectX::XMMATRIX vp;
+        DirectX::XMMATRIX model;
+        CascadeResultion resolution;
+        float spacing;
+    } CascadeConstants;
+    CascadeConstants.resolution = {16, 16, 16};
+    CascadeConstants.spacing = 0.5f;
+    CascadeConstants.vp = cameraConstants.viewProjection;
+    CascadeConstants.model = DirectX::XMMatrixScaling(0.005f, 0.005f, 0.005f);
+
+    Device::SetResourceData(m_debugCascadesConstants, CascadeConstants);
+
+    commands.List->SetPipelineState(m_debugCascadesPipeline.State.Get());
+    commands.List->SetGraphicsRootSignature(m_debugCascadesPipeline.RootSignature.Get());
+    commands.List->SetGraphicsRootConstantBufferView(0, m_debugCascadesConstants->GetGPUVirtualAddress());
+
+    m_debugSphere->DrawInstanced(commands.List, 16 * 16 * 16);
 
     barr.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     barr.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
