@@ -17,6 +17,10 @@
 #include <d3d12.h>
 #include <DirectXMath.h>
 
+#define EXPR(a, b) a ## b
+#define EXPR_EXPAND(a,b) EXPR(a, b)
+#define DUMMY_CBV_ENTRY uint32_t EXPR_EXPAND(dummy, __LINE__)
+
 using Microsoft::WRL::ComPtr;
 
 inline D3D12_CPU_DESCRIPTOR_HANDLE operator+(D3D12_CPU_DESCRIPTOR_HANDLE left, uint32_t right)

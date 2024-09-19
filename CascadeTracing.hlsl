@@ -7,8 +7,9 @@ cbuffer Constants : register(b0)
 
 cbuffer CascadeConstants : register(b1)
 {
-    uint3 cascadeResolution;
-    float cascadeSpacing;
+    uint3 resolution;
+    float3 extends;
+    float3 offset; 
 }
 
 RaytracingAccelerationStructure Scene : register(t0);
@@ -38,35 +39,44 @@ void RayGen()
 {
     uint2 index = DispatchRaysIndex().xy;
 
-    uint2 pixelCount = uint2(4, 2) * pow(2, cascade);
+    // TODO verify this
+    uint2 resolutionShift = cascade + uint2(cascade >> 1, (cascade + 1) >> 1);
 
-    uint2 cascadeIndex2d = index / pixelCount;
-    uint cascadeIndexLinear = cascadeIndex2d.y * DispatchRaysDimensions().x / pixelCount.x + cascadeIndex2d.x;
+    uint2 pixelCount = uint2(4, 2) << resolutionShift;
+    uint3 levelResolution = resolution >> cascade;
 
-    uint3 cascadeIndex;
-    cascadeIndex.z = cascadeIndexLinear / (cascadeResolution.y * cascadeResolution.x);
-    cascadeIndex.y = (cascadeIndexLinear % (cascadeResolution.y * cascadeResolution.x)) / cascadeResolution.x;
-    cascadeIndex.x = cascadeIndexLinear - cascadeIndex.y * cascadeResolution.x - cascadeIndex.z * (cascadeResolution.y * cascadeResolution.x);
+    uint2 index2d = index / pixelCount;
+    uint cascadeIndexLinear = index2d.y * DispatchRaysDimensions().x / pixelCount.x + index2d.x;
 
-    float3 cascadePosition = (float3(cascadeIndex) * 2 - float3(cascadeResolution)) * cascadeSpacing;
+    uint3 index3d;
+    index3d.z = cascadeIndexLinear / (levelResolution.y * levelResolution.x);
+    index3d.y = (cascadeIndexLinear % (levelResolution.y * levelResolution.x)) / levelResolution.x;
+    index3d.x = cascadeIndexLinear - index3d.y * levelResolution.x - index3d.z * (levelResolution.y * levelResolution.x);
+
+    float3 cascadePosition = float3(index3d + 0.5) / float3(levelResolution) * 2 - 1;
+    cascadePosition *= extends;
+    cascadePosition += offset;
 
     // TODO generate ray direction from cascade index and coord
-    float2 uv = (float2(index) - float2(cascadeIndex2d * pixelCount) + 0.5) / float2(pixelCount);
+    float2 uv = (float2(index) - float2(index2d * pixelCount) + 0.5) / float2(pixelCount);
     float3 rayStart = cascadePosition;
     float3 rayDir = fromSpherical(uv);
+
+    float start = cascade == 0 ? 0.001f : (2u << cascade);
+    float end = 2u << (cascade + 1);
 
     RayDesc ray;
     ray.Origin = rayStart;
     ray.Direction = rayDir;
-    ray.TMin = 0.001;
-    ray.TMax = 10000.0; // TODO set ray dist according to spacing and cascade level
+    ray.TMin = start; // TODO these need to be scaled by the true distances between the probes
+    ray.TMax = end;
 
     RayPayload payload = { float4(0, 0, 0, 0) };
 
     TraceRay(Scene, 0, ~0, 0, 0, 0, ray, payload);
 
     Cascades[uint3(index, cascade)] = payload.color;
-    //Cascades[uint3(index, cascade)] = float4(cascadePosition, 1);
+    //Cascades[uint3(index, cascade)] = float4(rayDir, 1);
 }
 
 [shader("closesthit")]

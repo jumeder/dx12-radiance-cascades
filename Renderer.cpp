@@ -3,7 +3,7 @@
 #include "Scene.h"
 
 Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
-    : m_radianceCascades(m_device, {16, 16, 16}, 5, 0.5f)
+    : m_radianceCascades(m_device, {16, 16, 16}, {8.f, 8.f, 8.f}, {0.f, 6.f, 0.f})
     , m_width(width)
     , m_height(height)
 {
@@ -140,11 +140,15 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     {
         DirectX::XMMATRIX vp;
         DirectX::XMMATRIX model;
-        CascadeResultion resolution;
-        float spacing;
+        CascadeResultion resolution; uint32_t dummy0;
+        std::array<float, 3> extends; uint32_t dummy1;
+        std::array<float, 3> offset; uint32_t dummy2;
     } CascadeConstants;
-    CascadeConstants.resolution = {16, 16, 16};
-    CascadeConstants.spacing = 0.5f;
+    constexpr auto cascade = 0;
+    const auto casmul = (uint32_t)pow(2, cascade);
+    CascadeConstants.resolution = {16 / casmul, 16 / casmul, 16 / casmul};
+    CascadeConstants.extends = {8.f, 8.f, 8.f};
+    CascadeConstants.offset = {0.f, 6.f, 0.f};
     CascadeConstants.vp = cameraConstants.viewProjection;
     CascadeConstants.model = DirectX::XMMatrixScaling(0.005f, 0.005f, 0.005f);
 

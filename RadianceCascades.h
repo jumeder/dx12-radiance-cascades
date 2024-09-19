@@ -11,10 +11,20 @@ struct CascadeResultion
     uint32_t z;
 };
 
+struct CascadeExtends
+{
+    float x;
+    float y;
+    float z;
+};
+
+using CascadeOffset = CascadeExtends;
+
+
 class RadianceCascades
 {
 public:
-    RadianceCascades(Device& device, const CascadeResultion& resolution, uint32_t cascadeCount, float spacing = 1.f);
+    RadianceCascades(Device& device, const CascadeResultion& resolution, const CascadeExtends& extends, const CascadeOffset& offset, uint32_t cascadeCount = 5);
 
     D3D12_GPU_DESCRIPTOR_HANDLE Generate(const ComPtr<ID3D12GraphicsCommandList>& commandList, D3D12_GPU_DESCRIPTOR_HANDLE accelerationStructure, D3D12_GPU_DESCRIPTOR_HANDLE instanceData);
 
@@ -28,8 +38,9 @@ private:
     D3D12_GPU_DESCRIPTOR_HANDLE m_cascadesAccumUav;
     D3D12_GPU_DESCRIPTOR_HANDLE m_cascadesAccumSrv;
     CascadeResultion m_resolution;
+    CascadeExtends m_extends;
+    CascadeOffset m_offset;
+    uint32_t m_count = 0;
     uint32_t m_cascadePixelsX = 0;
     uint32_t m_cascadePixelsY = 0;
-    uint32_t m_cascadeCount = 0;
-    float m_cascadeSpacing = 0;
 };

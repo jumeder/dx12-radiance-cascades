@@ -1,10 +1,11 @@
 #include "RadianceCascades.h"
 #include "Scene.h"
 
-RadianceCascades::RadianceCascades(Device& device, const CascadeResultion& resolution, uint32_t cascadeCount, float spacing)
+RadianceCascades::RadianceCascades(Device& device, const CascadeResultion& resolution, const CascadeExtends& extends, const CascadeOffset& offset, uint32_t cascadeCount)
     : m_resolution(resolution)
-    , m_cascadeCount(cascadeCount)
-    , m_cascadeSpacing(spacing)
+    , m_extends(extends)
+    , m_offset(offset)
+    , m_count(cascadeCount)
 {
     // TODO compute cascade count from level 0
     constexpr auto cascadePixelsX = 4;
@@ -51,11 +52,13 @@ D3D12_GPU_DESCRIPTOR_HANDLE RadianceCascades::Generate(const ComPtr<ID3D12Graphi
 
     struct
     {
-        CascadeResultion cascadeResultion;
-        float cascadeSpacing;
+        CascadeResultion resolution; DUMMY_CBV_ENTRY;
+        CascadeExtends extends; DUMMY_CBV_ENTRY;
+        CascadeOffset offset; DUMMY_CBV_ENTRY;
     } CascadeConstants;
-    CascadeConstants.cascadeResultion = m_resolution;
-    CascadeConstants.cascadeSpacing = m_cascadeSpacing;
+    CascadeConstants.resolution = m_resolution;
+    CascadeConstants.extends = m_extends;
+    CascadeConstants.offset = m_offset;
 
     Device::SetResourceData(m_tracingConstants, CascadeConstants);
 
@@ -78,7 +81,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE RadianceCascades::Generate(const ComPtr<ID3D12Graphi
     rays.MissShaderTable = m_cascadeGenerationPipeline.RayMissRange;
     rays.HitGroupTable = m_cascadeGenerationPipeline.RayHitRange;
 
-    for (auto i = 0u; i < 1; ++i)
+    for (auto i = 0u; i < m_count; ++i)
     {
         commandList->SetComputeRoot32BitConstant(0, i, 0);
         commandList4->DispatchRays(&rays);
