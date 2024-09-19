@@ -1,48 +1,37 @@
 #include "Common.hlsl"
 
+// TODO refactor
 cbuffer Constants : register(b0)
 {
-    uint cascade;
+    uint UNUSED_cascade;
 };
 
 cbuffer CascadeConstants : register(b1)
 {
     uint3 resolution;
     float3 extends;
-    float3 offset; 
-}
+    float3 offset;
+    uint2 size;
+};
 
 RaytracingAccelerationStructure Scene : register(t0);
 StructuredBuffer<Instance> Instances : register(t1);
 
-RWTexture2DArray<unorm float4> Cascades : register(u0);
+RWTexture2DArray<float4> Cascades : register(u0);
 
 struct RayPayload
 {
     float4 color;
 };
 
-// TODO function to compute direction from spherical texcoords
 // TODO function to compute spherical coords from ray coords and cascade index
-
-float3 fromSpherical(float2 spherical)
-{
-    return float3(
-        sin(spherical.y * M_PI) * cos(spherical.x * 2 * M_PI),
-        sin(spherical.y * M_PI) * sin(spherical.x * 2 * M_PI),
-        cos(spherical.y * M_PI)
-    );
-}
 
 [shader("raygeneration")]
 void RayGen()
 {
     uint2 index = DispatchRaysIndex().xy;
-
-    // TODO verify this
-    uint2 resolutionShift = cascade + uint2(cascade >> 1, (cascade + 1) >> 1);
-
-    uint2 pixelCount = uint2(4, 2) << resolutionShift;
+    uint cascade = DispatchRaysIndex().z;
+    uint2 pixelCount = GetPixelCount(cascade);
     uint3 levelResolution = resolution >> cascade;
 
     uint2 index2d = index / pixelCount;
@@ -57,13 +46,12 @@ void RayGen()
     cascadePosition *= extends;
     cascadePosition += offset;
 
-    // TODO generate ray direction from cascade index and coord
     float2 uv = (float2(index) - float2(index2d * pixelCount) + 0.5) / float2(pixelCount);
     float3 rayStart = cascadePosition;
     float3 rayDir = fromSpherical(uv);
 
-    float start = cascade == 0 ? 0.001f : (2u << cascade);
-    float end = 2u << (cascade + 1);
+    float start = cascade == 0.f ? 0.001f : float(1u << (cascade  - 1));
+    float end = float(1u << cascade);
 
     RayDesc ray;
     ray.Origin = rayStart;
@@ -75,7 +63,7 @@ void RayGen()
 
     TraceRay(Scene, 0, ~0, 0, 0, 0, ray, payload);
 
-    Cascades[uint3(index, cascade)] = payload.color;
+    Cascades[DispatchRaysIndex()] = payload.color;
     //Cascades[uint3(index, cascade)] = float4(rayDir, 1);
 }
 

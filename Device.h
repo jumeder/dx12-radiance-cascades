@@ -67,10 +67,12 @@ public:
     D3D12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format);
     D3D12_GPU_DESCRIPTOR_HANDLE CreateShaderResourceView(const ComPtr<ID3D12Resource> resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc, D3D12_GPU_DESCRIPTOR_HANDLE oldHandle = {});
     D3D12_GPU_DESCRIPTOR_HANDLE CreateUnorderedAccessView(const ComPtr<ID3D12Resource>& resource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc);
+    D3D12_CPU_DESCRIPTOR_HANDLE CreateSampler(const D3D12_SAMPLER_DESC& desc);
 
     Pipeline CreateDrawingPipeline();
     State CreateRayTracingPipeline();
     State CreateCascadeTracingPipeline();
+    Pipeline CreateCascadeAccumulationPipeline();
     Pipeline CreateCascadeDebugPipeline();
 
     void SetDescriptorHeaps(const ComPtr<ID3D12GraphicsCommandList>& commandList);
@@ -81,7 +83,7 @@ public:
     operator ID3D12CommandQueue*() const { return m_queue.Get(); }
 
     static void PipelineBarrierUav(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& resource);
-    static void PipelineBarrierTransition(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after);
+    static void PipelineBarrierTransition(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after, uint32_t subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
 
     template<typename T>
     static void SetResourceData(const ComPtr<ID3D12Resource>& resource, const T& data, uint64_t count = 1)
@@ -98,9 +100,11 @@ private:
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
     ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
     ComPtr<ID3D12DescriptorHeap> m_srvHeap;
+    ComPtr<ID3D12DescriptorHeap> m_samplerHeap;
     uint32_t m_rtvPos = 0;
     uint32_t m_dsvPos = 0;
     uint32_t m_srvPos = 0;
+    uint32_t m_samplerPos = 0;
 
     HANDLE m_submissionEvent;
 
@@ -116,4 +120,6 @@ private:
 
     ComPtr<ID3D12Resource> m_tlasScratch;
     uint64_t m_tlasScratchSize = 0;
+
+    //D3D12_CPU_DESCRIPTOR_HANDLE m_linearSampler;
 };

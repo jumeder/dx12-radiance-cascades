@@ -2,6 +2,8 @@
 #include "Model.h"
 #include "Scene.h"
 
+#include <chrono>
+
 Application::Application(uint32_t width, uint32_t height)
     : m_camera((float)M_PI / 2, (float)width / height, 0.1f)
 {
@@ -20,7 +22,7 @@ Application::Application(uint32_t width, uint32_t height)
 
     m_scene = std::make_unique<Scene>(m_renderer->GetDevice());
     m_scene->AddInstance(*m_sponza, DirectX::XMMatrixScaling(0.01f, 0.01f, 0.01f), DirectX::XMVECTOR{0.f, 0.5f, 0.5f, 1.f}, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f});
-    m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{1.f, 1.f, 1.f, 1.f});
+    m_sphereInstance = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{1.f, 1.f, 1.f, 1.f});
 }
 
 Application::~Application()
@@ -34,6 +36,9 @@ void Application::Run()
     {
         glfwPollEvents();
         HandleInput();
+
+        const auto sphereTransform = DirectX::XMMatrixMultiply(DirectX::XMMatrixScaling(0.01f, 0.01f, 0.01f), DirectX::XMMatrixTranslation(sin(std::chrono::high_resolution_clock::now().time_since_epoch().count() * 1e-9) * 5.f, 6.f, 0));
+        m_scene->SetInstanceTransform(m_sphereInstance, sphereTransform);
 
         m_renderer->Render(m_camera, *m_scene);
     }

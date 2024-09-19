@@ -2,6 +2,6 @@
 
 int main(int, char**)
 {
-    Application app;
+    Application app(1280, 720);
     app.Run();
 }

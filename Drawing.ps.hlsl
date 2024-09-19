@@ -9,10 +9,76 @@ struct PixelIn
     float4 Position : SV_Position;
 };
 
+cbuffer CascadeConstants : register(b2)
+{
+    uint3 resolution;
+    float3 extends;
+    float3 offset;
+    uint2 size;
+};
+
+Texture2D<float4> RadianceCascade : register(t1);
+
+SamplerState linearSampler : register(s0);
+
+uint2 GetIndex2d(uint3 index3d, uint3 resolution, uint probeCountX)
+{
+    uint indexLinear = index3d.z * resolution.y * resolution.x + index3d.y * resolution.x + index3d.x;
+    return uint2(indexLinear % probeCountX, indexLinear / probeCountX); 
+}
+
+float4 SingleSample(float2 localCoord, uint3 resolution, uint probeCountX, uint2 pixelCount, uint3 index3d)
+{
+    uint2 index2d = GetIndex2d(index3d, resolution, probeCountX);
+    float2 coord = index2d * pixelCount + localCoord;
+    return RadianceCascade.SampleLevel(linearSampler, coord / size, 0); // TODO optimize
+}
+
+float4 SampleCascade(float2 uv, float3 pos)
+{
+    // TODO fetch 8 samples
+    // TODO need to clamp to the inside of the cascade
+
+    uint2 pixelCount = GetPixelCount(0);
+    uint probeCountX = size.x / pixelCount.x;
+
+    // TODO is this correct?
+    float3 t = frac(pos) - 0.5;
+    float3 interp = t < 0 ? 1 + t : t;
+    float3 ll = t < 0 ? floor(pos) - 1 : floor(pos);
+
+    float2 localPixelCoord = uv * pixelCount;
+    float4 samples[8] = {
+        SingleSample(localPixelCoord, resolution, probeCountX, pixelCount, clamp(ll + float3(0, 0, 0), 0.f, resolution)),
+        SingleSample(localPixelCoord, resolution, probeCountX, pixelCount, clamp(ll + float3(1, 0, 0), 0.f, resolution)),
+        SingleSample(localPixelCoord, resolution, probeCountX, pixelCount, clamp(ll + float3(0, 1, 0), 0.f, resolution)),
+        SingleSample(localPixelCoord, resolution, probeCountX, pixelCount, clamp(ll + float3(1, 1, 0), 0.f, resolution)),
+        SingleSample(localPixelCoord, resolution, probeCountX, pixelCount, clamp(ll + float3(0, 0, 1), 0.f, resolution)),
+        SingleSample(localPixelCoord, resolution, probeCountX, pixelCount, clamp(ll + float3(1, 0, 1), 0.f, resolution)),
+        SingleSample(localPixelCoord, resolution, probeCountX, pixelCount, clamp(ll + float3(0, 1, 1), 0.f, resolution)),
+        SingleSample(localPixelCoord, resolution, probeCountX, pixelCount, clamp(ll + float3(1, 1, 1), 0.f, resolution)),
+    };
+
+    float4 lerpX[4];
+    lerpX[0] = lerp(samples[0], samples[1], interp.x);
+    lerpX[1] = lerp(samples[2], samples[3], interp.x);
+    lerpX[2] = lerp(samples[4], samples[5], interp.x);
+    lerpX[3] = lerp(samples[6], samples[7], interp.x);
+
+    float4 lerpY[2];
+    lerpY[0] = lerp(lerpX[0], lerpX[1], interp.y);
+    lerpY[1] = lerp(lerpX[2], lerpX[3], interp.y);
+
+    return lerp(lerpY[0], lerpY[1], interp.z);
+}
+
 float4 main(in PixelIn input) : SV_Target
 {
+    float3 cascadePos = ((input.WorldPosition - offset) / extends * 0.5 + 0.5) * resolution;
+
     //float3 v = normalize(CameraPosition - input.WorldPosition);
-    float3 l = float3(1, 1, 1);
+    float3 l = float3(0.1, 0.1, 0.1);
     float3 n = normalize(input.Normal);
-    return input.Albedo * max(0.05, dot(n, l) / M_PI) + input.Emission;
+    //return input.Albedo * max(0.05, dot(n, l) / M_PI) + input.Emission + SampleCascade(toSpherical(input.Normal), cascadePos);
+    return input.Emission + input.Albedo * SampleCascade(toSpherical(input.Normal), cascadePos);
 }

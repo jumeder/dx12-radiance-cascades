@@ -16,6 +16,7 @@ add_shader(Drawing.vs.hlsl vs_6_0 Drawing.vs.h DrawingVS)
 add_shader(Drawing.ps.hlsl ps_6_0 Drawing.ps.h DrawingPS)
 add_shader(Raytracing.hlsl lib_6_3 Raytracing.h Raytracing)
 add_shader(CascadeTracing.hlsl lib_6_3 CascadeTracing.h CascadeTracing)
+add_shader(CascadeAccumulation.hlsl cs_6_0 CascadeAccumulation.h CascadeAccumulation)
 add_shader(DebugCascades.vs.hlsl vs_6_0 DebugCascades.vs.h DebugCascadesVS)
 add_shader(DebugCascades.ps.hlsl ps_6_0 DebugCascades.ps.h DebugCascadesPS)
 
@@ -31,6 +32,7 @@ add_executable(dx12-radiance-cascades
     Drawing.ps.h
     RayTracing.h
     CascadeTracing.h
+    CascadeAccumulation.h
     DebugCascades.vs.h
     DebugCascades.ps.h
 )

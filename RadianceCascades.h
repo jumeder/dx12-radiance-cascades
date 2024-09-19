@@ -28,15 +28,16 @@ public:
 
     D3D12_GPU_DESCRIPTOR_HANDLE Generate(const ComPtr<ID3D12GraphicsCommandList>& commandList, D3D12_GPU_DESCRIPTOR_HANDLE accelerationStructure, D3D12_GPU_DESCRIPTOR_HANDLE instanceData);
 
+    inline auto& GetConstants() const { return m_tracingConstants; }
+
 private:
     State m_cascadeGenerationPipeline;
-    ComPtr<ID3D12Resource> m_cascadesTrace;
-    ComPtr<ID3D12Resource> m_cascadesAccum;
+    Pipeline m_cascadeAccumulationPipeline;
+    ComPtr<ID3D12Resource> m_cascades;
     ComPtr<ID3D12Resource> m_tracingConstants;
-    D3D12_GPU_DESCRIPTOR_HANDLE m_cascadesTraceUav;
-    D3D12_GPU_DESCRIPTOR_HANDLE m_cascadesTraceSrv;
-    D3D12_GPU_DESCRIPTOR_HANDLE m_cascadesAccumUav;
-    D3D12_GPU_DESCRIPTOR_HANDLE m_cascadesAccumSrv;
+    std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> m_cascadeUavs;
+    std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> m_cascadeSrvs;
+    D3D12_GPU_DESCRIPTOR_HANDLE m_cascadesUav;
     CascadeResultion m_resolution;
     CascadeExtends m_extends;
     CascadeOffset m_offset;

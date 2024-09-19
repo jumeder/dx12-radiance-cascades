@@ -89,3 +89,22 @@ uint32_t Scene::AddInstance(const Model& model, const DirectX::XMMATRIX& transfo
 
     return instanceId;
 }
+
+void Scene::SetInstanceTransform(uint32_t instanceId, const DirectX::XMMATRIX& transform)
+{
+    auto& instance = m_instanceDataPtr[instanceId];
+    instance.Transform = transform;
+
+    D3D12_RAYTRACING_INSTANCE_DESC* buildData;
+    m_tlasBuildData->Map(0, nullptr, (void**)&buildData);
+
+    const auto transposedTransform = DirectX::XMMatrixTranspose(transform);
+
+    auto& instanceBuildData = buildData[instanceId];
+    std::memcpy(instanceBuildData.Transform, &transposedTransform, sizeof(instanceBuildData.Transform));
+
+    D3D12_RANGE writeRange = {instanceId * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), (instanceId + 1) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC) };
+    m_tlasBuildData->Unmap(0, &writeRange);
+
+    m_transformsDirty = true;
+}

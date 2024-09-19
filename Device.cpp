@@ -4,6 +4,7 @@
 #include "Drawing.ps.h"
 #include "Raytracing.h"
 #include "CascadeTracing.h"
+#include "CascadeAccumulation.h"
 #include "DebugCascades.vs.h"
 #include "DebugCascades.ps.h"
 
@@ -36,6 +37,10 @@ Device::Device()
     m_srvHeap = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     m_rtvHeap = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 128);
     m_dsvHeap = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 128);
+    m_samplerHeap = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 128);
+
+
+    //m_linearSampler = CreateSampler(samplerDesc);
 }
 
 Device::~Device()
@@ -380,6 +385,15 @@ D3D12_GPU_DESCRIPTOR_HANDLE Device::CreateUnorderedAccessView(const ComPtr<ID3D1
     return gpuHandle;
 }
 
+D3D12_CPU_DESCRIPTOR_HANDLE Device::CreateSampler(const D3D12_SAMPLER_DESC& desc)
+{
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_samplerHeap->GetCPUDescriptorHandleForHeapStart() + m_samplerPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+
+    m_device->CreateSampler(&desc, cpuHandle);
+
+    return cpuHandle;
+}
+
 Pipeline Device::CreateDrawingPipeline()
 {
     ComPtr<ID3D12Device5> device;
@@ -411,14 +425,43 @@ Pipeline Device::CreateDrawingPipeline()
     objectConstants.Constants.Num32BitValues = 1;
     objectConstants.Constants.RegisterSpace = 0;
     objectConstants.Constants.ShaderRegister = 1;
-    std::array parameters = {cameraConstants, instances, objectConstants};
+    D3D12_ROOT_PARAMETER cascadeConstants;
+    cascadeConstants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    cascadeConstants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    cascadeConstants.Descriptor.RegisterSpace = 0;
+    cascadeConstants.Descriptor.ShaderRegister = 2;
+    D3D12_DESCRIPTOR_RANGE radianceCascadeRange;
+    radianceCascadeRange.BaseShaderRegister = 1;
+    radianceCascadeRange.NumDescriptors = 1;
+    radianceCascadeRange.OffsetInDescriptorsFromTableStart = 0;
+    radianceCascadeRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    radianceCascadeRange.RegisterSpace = 0;
+    D3D12_ROOT_PARAMETER radianceCascade;
+    radianceCascade.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    radianceCascade.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    radianceCascade.DescriptorTable.NumDescriptorRanges = 1;
+    radianceCascade.DescriptorTable.pDescriptorRanges = &radianceCascadeRange;
+    std::array parameters = {cameraConstants, instances, objectConstants, cascadeConstants, radianceCascade};
+
+    D3D12_STATIC_SAMPLER_DESC linearSampler;
+    linearSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    linearSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    linearSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    linearSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    linearSampler.MaxAnisotropy = 0;
+    linearSampler.MaxLOD = 0.f;
+    linearSampler.MinLOD = 0.f;
+    linearSampler.MipLODBias = 0.f;
+    linearSampler.RegisterSpace = 0;
+    linearSampler.ShaderRegister = 0;
+    linearSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
     rootSignatureDesc.NumParameters = (UINT)parameters.size();
-    rootSignatureDesc.NumStaticSamplers = 0;
+    rootSignatureDesc.NumStaticSamplers = 1;
     rootSignatureDesc.pParameters = parameters.data();
-    rootSignatureDesc.pStaticSamplers = nullptr;
+    rootSignatureDesc.pStaticSamplers = &linearSampler;
     D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, nullptr);
     assert(blob);
 
@@ -868,6 +911,100 @@ State Device::CreateCascadeTracingPipeline()
     return ret;
 }
 
+Pipeline Device::CreateCascadeAccumulationPipeline()
+{
+    ComPtr<ID3D12Device5> device;
+    m_device.As(&device);
+    assert(device);
+
+    Pipeline ret;
+
+    ComPtr<ID3DBlob> blob;
+    D3D12_ROOT_PARAMETER constants;
+    constants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    constants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    constants.Constants.Num32BitValues = 1;
+    constants.Constants.RegisterSpace = 0;
+    constants.Constants.ShaderRegister = 0;
+    D3D12_ROOT_PARAMETER cascadeConstants;
+    cascadeConstants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    cascadeConstants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    cascadeConstants.Descriptor.RegisterSpace = 0;
+    cascadeConstants.Descriptor.ShaderRegister = 1;
+    D3D12_DESCRIPTOR_RANGE higherCascadeRange;
+    higherCascadeRange.BaseShaderRegister = 0;
+    higherCascadeRange.NumDescriptors = 1;
+    higherCascadeRange.OffsetInDescriptorsFromTableStart = 0;
+    higherCascadeRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    higherCascadeRange.RegisterSpace = 0;
+    D3D12_ROOT_PARAMETER higherCascade;
+    higherCascade.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    higherCascade.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    higherCascade.DescriptorTable.NumDescriptorRanges = 1;
+    higherCascade.DescriptorTable.pDescriptorRanges = &higherCascadeRange;
+    D3D12_DESCRIPTOR_RANGE currentCascadeRange;
+    currentCascadeRange.BaseShaderRegister = 0;
+    currentCascadeRange.NumDescriptors = 1;
+    currentCascadeRange.OffsetInDescriptorsFromTableStart = 0;
+    currentCascadeRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    currentCascadeRange.RegisterSpace = 0;
+    D3D12_ROOT_PARAMETER currentCascade;
+    currentCascade.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    currentCascade.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    currentCascade.DescriptorTable.NumDescriptorRanges = 1;
+    currentCascade.DescriptorTable.pDescriptorRanges = &currentCascadeRange;
+    std::array parameters = {constants, cascadeConstants, higherCascade, currentCascade};
+
+    D3D12_STATIC_SAMPLER_DESC linearSampler;
+    linearSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    linearSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    linearSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    linearSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    linearSampler.MaxAnisotropy = 0;
+    linearSampler.MaxLOD = 0.f;
+    linearSampler.MinLOD = 0.f;
+    linearSampler.MipLODBias = 0.f;
+    linearSampler.RegisterSpace = 0;
+    linearSampler.ShaderRegister = 0;
+    linearSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+    rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+    rootSignatureDesc.NumParameters = (UINT)parameters.size();
+    rootSignatureDesc.NumStaticSamplers = 1;
+    rootSignatureDesc.pParameters = parameters.data();
+    rootSignatureDesc.pStaticSamplers = &linearSampler;
+    D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, nullptr);
+    assert(blob);
+
+    device->CreateRootSignature(0b1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&ret.RootSignature));
+
+    struct
+    {
+        struct alignas(void*)
+        {
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_CS;
+            D3D12_SHADER_BYTECODE desc;
+        } CS;
+        struct alignas(void*)
+        {
+            D3D12_PIPELINE_STATE_SUBOBJECT_TYPE type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE;
+            ID3D12RootSignature* desc;
+        } RootSignature;
+    } streamDesc;
+
+    streamDesc.CS.desc = {CascadeAccumulation, sizeof(CascadeAccumulation)};
+    streamDesc.RootSignature.desc = ret.RootSignature.Get();
+
+    D3D12_PIPELINE_STATE_STREAM_DESC stateDesc;
+    stateDesc.pPipelineStateSubobjectStream = &streamDesc;
+    stateDesc.SizeInBytes = sizeof(streamDesc);
+    device->CreatePipelineState(&stateDesc, IID_PPV_ARGS(&ret.State));
+    assert(ret.State);
+
+    return ret;
+}
+
 // TODO make this into a type dependend template
 void Device::SetResourceDataInternal(const ComPtr<ID3D12Resource>& resource, const void* data, uint64_t size)
 {
@@ -902,7 +1039,7 @@ void Device::PipelineBarrierUav(const ComPtr<ID3D12GraphicsCommandList>& command
     commandList->ResourceBarrier(1, &barr);
 }
 
-void Device::PipelineBarrierTransition(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after)
+void Device::PipelineBarrierTransition(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after, uint32_t subresource)
 {
     D3D12_RESOURCE_BARRIER barr;
     barr.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -910,6 +1047,6 @@ void Device::PipelineBarrierTransition(const ComPtr<ID3D12GraphicsCommandList>& 
     barr.Transition.pResource = resource.Get();
     barr.Transition.StateBefore = before;
     barr.Transition.StateAfter = after;
-    barr.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    barr.Transition.Subresource = subresource;
     commandList->ResourceBarrier(1, &barr);
 }

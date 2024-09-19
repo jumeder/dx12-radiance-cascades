@@ -17,9 +17,9 @@ public:
     
     uint32_t AddInstance(const Model& model, const DirectX::XMMATRIX& transform, const DirectX::XMVECTOR& albedo, const DirectX::XMVECTOR& emission);
 
-    void SetInstanceTransform(uint32_t instance, const DirectX::XMMATRIX& transform);
-    void SetInstanceAlbedo(uint32_t instance, const DirectX::XMVECTOR& albedo);
-    void SetInstanceEmission(uint32_t instance, const DirectX::XMVECTOR& emission);
+    void SetInstanceTransform(uint32_t instanceId, const DirectX::XMMATRIX& transform);
+    void SetInstanceAlbedo(uint32_t instanceId, const DirectX::XMVECTOR& albedo);
+    void SetInstanceEmission(uint32_t instanceId, const DirectX::XMVECTOR& emission);
 
 private:
     struct Instance

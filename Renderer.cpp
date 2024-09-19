@@ -105,14 +105,14 @@ void Renderer::Render(const Camera& camera, Scene& scene)
 #else
 
     auto& accelHandle = m_accelHandles[frameIndex];
-    auto& accelStruct = scene.GetAccelerationStructure();
+    m_accelCache[frameIndex] = scene.GetAccelerationStructure();
 
     D3D12_SHADER_RESOURCE_VIEW_DESC accelViewDesc;
     accelViewDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
     accelViewDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     accelViewDesc.Format = DXGI_FORMAT_UNKNOWN;
-    accelViewDesc.RaytracingAccelerationStructure.Location = accelStruct->GetGPUVirtualAddress();
-    accelHandle = m_device.CreateShaderResourceView(accelStruct, accelViewDesc, accelHandle);
+    accelViewDesc.RaytracingAccelerationStructure.Location = m_accelCache[frameIndex]->GetGPUVirtualAddress();
+    accelHandle = m_device.CreateShaderResourceView(m_accelCache[frameIndex], accelViewDesc, accelHandle);
 
     auto cascadesHandle = m_radianceCascades.Generate(commands.List, accelHandle, scene.GetInstanceDataHandle());
     
@@ -127,6 +127,8 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     m_device.SetResourceData(m_cameraConstants, cameraConstants);
     commands.List->SetGraphicsRootConstantBufferView(0, m_cameraConstants->GetGPUVirtualAddress());
     commands.List->SetGraphicsRootDescriptorTable(1, scene.GetInstanceDataHandle());
+    commands.List->SetGraphicsRootConstantBufferView(3, m_radianceCascades.GetConstants()->GetGPUVirtualAddress());
+    commands.List->SetGraphicsRootDescriptorTable(4, cascadesHandle);
     
     D3D12_VIEWPORT viewport = {0.f, 0.f, (float)m_width, (float)m_height, 0.f, 1.f};
     commands.List->RSSetScissorRects(1, &rect);
@@ -135,7 +137,7 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     commands.List->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     scene.Draw(commands.List);
-
+#if 0
     struct
     {
         DirectX::XMMATRIX vp;
@@ -159,6 +161,7 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     commands.List->SetGraphicsRootConstantBufferView(0, m_debugCascadesConstants->GetGPUVirtualAddress());
 
     m_debugSphere->DrawInstanced(commands.List, 16 * 16 * 16);
+#endif
 
     barr.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     barr.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
@@ -170,4 +173,6 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     m_swapChain->Present(1, 0);
 
     ++m_frameCounter;
+    
+    m_device.WaitIdle();
 }

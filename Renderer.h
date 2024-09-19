@@ -39,6 +39,7 @@ private:
     ComPtr<ID3D12Resource> m_raytracingConstants;
     ViewedResource m_raytracingTarget;
     std::array<D3D12_GPU_DESCRIPTOR_HANDLE, c_backBufferCount> m_accelHandles = {};
+    std::array<ComPtr<ID3D12Resource>, c_backBufferCount> m_accelCache = {};
 
     uint64_t m_frameCounter = 0;
     uint32_t m_width = 0;

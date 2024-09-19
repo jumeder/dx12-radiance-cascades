@@ -29,6 +29,8 @@ private:
     std::unique_ptr<Model> m_sphere;
     std::unique_ptr<Scene> m_scene;
 
+    uint32_t m_sphereInstance;
+
     bool m_mouseDown = false;
     double m_lastMouseX = 0.f;
     double m_lastMouseY = 0.f;
