@@ -9,17 +9,18 @@ struct Instance
 
 float3 fromSpherical(float2 spherical)
 {
+    float2 s = spherical * float2(2, 1) - float2(1, 0);
     return float3(
-        sin(spherical.y * M_PI) * cos(spherical.x * 2 * M_PI),
-        sin(spherical.y * M_PI) * sin(spherical.x * 2 * M_PI),
-        cos(spherical.y * M_PI)
+        sin(s.y * M_PI) * cos(s.x * M_PI),
+        cos(s.y * M_PI),
+        sin(s.y * M_PI) * sin(s.x * M_PI)
     );
 }
 
 float2 toSpherical(float3 dir)
 {
-    float2 spherical = {atan2(dir.y, dir.x), acos(dir.z)};
-    return spherical / float2(2 * M_PI, M_PI);
+    float2 spherical = {atan2(dir.z, dir.x), acos(dir.y)};
+    return spherical / float2(M_PI, M_PI) * float2(0.5, 1.f) + float2(0.5, 0.f);
 }
 
 uint2 GetPixelCount(uint cascade)

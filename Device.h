@@ -61,12 +61,13 @@ public:
     ComPtr<ID3D12Resource> CreateTopLevelAccelerationStructure(const ComPtr<ID3D12GraphicsCommandList>& commandList, const ComPtr<ID3D12Resource>& instanceBuffer, uint32_t count);
 
     Commands CreateGraphicsCommands();
-    void SubmitGraphicsCommands(Commands&& commands);
+    uint64_t SubmitGraphicsCommands(Commands&& commands);
 
     D3D12_CPU_DESCRIPTOR_HANDLE CreateRenderTargetView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format);
     D3D12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format);
     D3D12_GPU_DESCRIPTOR_HANDLE CreateShaderResourceView(const ComPtr<ID3D12Resource> resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc, D3D12_GPU_DESCRIPTOR_HANDLE oldHandle = {});
     D3D12_GPU_DESCRIPTOR_HANDLE CreateUnorderedAccessView(const ComPtr<ID3D12Resource>& resource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc);
+    D3D12_GPU_DESCRIPTOR_HANDLE CreateUnorderedAccessViews(const ComPtr<ID3D12Resource>* resources, const uint64_t count, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc);
     D3D12_CPU_DESCRIPTOR_HANDLE CreateSampler(const D3D12_SAMPLER_DESC& desc);
 
     Pipeline CreateDrawingPipeline();
@@ -78,6 +79,8 @@ public:
     void SetDescriptorHeaps(const ComPtr<ID3D12GraphicsCommandList>& commandList);
 
     void WaitIdle();
+
+    inline uint64_t GetCompletedSubmission() const { return m_submissionFence->GetCompletedValue(); }
 
     operator ID3D12Device*() const { return m_device.Get(); }
     operator ID3D12CommandQueue*() const { return m_queue.Get(); }
@@ -120,6 +123,8 @@ private:
 
     ComPtr<ID3D12Resource> m_tlasScratch;
     uint64_t m_tlasScratchSize = 0;
+
+    D3D12_STATIC_SAMPLER_DESC m_linearSampler;
 
     //D3D12_CPU_DESCRIPTOR_HANDLE m_linearSampler;
 };

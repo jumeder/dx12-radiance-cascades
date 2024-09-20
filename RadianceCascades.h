@@ -30,6 +30,8 @@ public:
 
     inline auto& GetConstants() const { return m_tracingConstants; }
 
+    inline auto& GetResolution() const { return m_resolution; }
+
 private:
     State m_cascadeGenerationPipeline;
     Pipeline m_cascadeAccumulationPipeline;

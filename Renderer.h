@@ -25,6 +25,13 @@ private:
         D3D12_GPU_DESCRIPTOR_HANDLE GpuHandle; 
     };
 
+    struct PendingAccelStruct
+    {
+        ComPtr<ID3D12Resource> Resource;
+        D3D12_GPU_DESCRIPTOR_HANDLE Handle;
+        uint64_t Submission;
+    };
+
     Device m_device;
     RadianceCascades m_radianceCascades;
 
@@ -38,8 +45,8 @@ private:
     State m_raytracingPipeline;
     ComPtr<ID3D12Resource> m_raytracingConstants;
     ViewedResource m_raytracingTarget;
-    std::array<D3D12_GPU_DESCRIPTOR_HANDLE, c_backBufferCount> m_accelHandles = {};
-    std::array<ComPtr<ID3D12Resource>, c_backBufferCount> m_accelCache = {};
+    std::deque<PendingAccelStruct> m_pendingRaytracingResources;
+    std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> m_freeRaytracingHandles;
 
     uint64_t m_frameCounter = 0;
     uint32_t m_width = 0;

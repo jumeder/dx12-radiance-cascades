@@ -35,7 +35,7 @@ void RayGen()
     uint3 levelResolution = resolution >> cascade;
 
     uint2 index2d = index / pixelCount;
-    uint cascadeIndexLinear = index2d.y * DispatchRaysDimensions().x / pixelCount.x + index2d.x;
+    uint cascadeIndexLinear = index2d.y * size.x / pixelCount.x + index2d.x;
 
     uint3 index3d;
     index3d.z = cascadeIndexLinear / (levelResolution.y * levelResolution.x);

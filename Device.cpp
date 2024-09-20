@@ -39,7 +39,17 @@ Device::Device()
     m_dsvHeap = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 128);
     m_samplerHeap = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 128);
 
-
+    m_linearSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    m_linearSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    m_linearSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    m_linearSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    m_linearSampler.MaxAnisotropy = 0;
+    m_linearSampler.MaxLOD = 0.f;
+    m_linearSampler.MinLOD = 0.f;
+    m_linearSampler.MipLODBias = 0.f;
+    m_linearSampler.RegisterSpace = 0;
+    m_linearSampler.ShaderRegister = 0;
+    m_linearSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     //m_linearSampler = CreateSampler(samplerDesc);
 }
 
@@ -302,7 +312,7 @@ Commands Device::CreateGraphicsCommands()
     return commands;
 }
 
-void Device::SubmitGraphicsCommands(Commands&& commands)
+uint64_t Device::SubmitGraphicsCommands(Commands&& commands)
 {
     commands.List->Close();
     ID3D12CommandList* list = commands.List.Get();
@@ -319,6 +329,8 @@ void Device::SubmitGraphicsCommands(Commands&& commands)
         m_freeAllocators.push_back(std::move(front.Allocator));
         m_pendingCommands.pop_front();
     }
+
+    return m_submissionCounter;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE Device::CreateRenderTargetView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format)
@@ -385,6 +397,18 @@ D3D12_GPU_DESCRIPTOR_HANDLE Device::CreateUnorderedAccessView(const ComPtr<ID3D1
     return gpuHandle;
 }
 
+D3D12_GPU_DESCRIPTOR_HANDLE Device::CreateUnorderedAccessViews(const ComPtr<ID3D12Resource>* resources, const uint64_t count, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc)
+{
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_srvHeap->GetCPUDescriptorHandleForHeapStart() + m_srvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_srvHeap->GetGPUDescriptorHandleForHeapStart() + m_srvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    m_srvPos += count;
+
+    for (auto i = 0u; i < count; ++i)
+        m_device->CreateUnorderedAccessView(resources[i].Get(), nullptr, &desc, cpuHandle + i * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+
+    return gpuHandle;
+}
+
 D3D12_CPU_DESCRIPTOR_HANDLE Device::CreateSampler(const D3D12_SAMPLER_DESC& desc)
 {
     D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_samplerHeap->GetCPUDescriptorHandleForHeapStart() + m_samplerPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
@@ -443,25 +467,12 @@ Pipeline Device::CreateDrawingPipeline()
     radianceCascade.DescriptorTable.pDescriptorRanges = &radianceCascadeRange;
     std::array parameters = {cameraConstants, instances, objectConstants, cascadeConstants, radianceCascade};
 
-    D3D12_STATIC_SAMPLER_DESC linearSampler;
-    linearSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    linearSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    linearSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    linearSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-    linearSampler.MaxAnisotropy = 0;
-    linearSampler.MaxLOD = 0.f;
-    linearSampler.MinLOD = 0.f;
-    linearSampler.MipLODBias = 0.f;
-    linearSampler.RegisterSpace = 0;
-    linearSampler.ShaderRegister = 0;
-    linearSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-
     D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
     rootSignatureDesc.NumParameters = (UINT)parameters.size();
     rootSignatureDesc.NumStaticSamplers = 1;
     rootSignatureDesc.pParameters = parameters.data();
-    rootSignatureDesc.pStaticSamplers = &linearSampler;
+    rootSignatureDesc.pStaticSamplers = &m_linearSampler;
     D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, nullptr);
     assert(blob);
 
@@ -561,15 +572,32 @@ Pipeline Device::CreateCascadeDebugPipeline()
     constants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     constants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     constants.Descriptor.RegisterSpace = 0;
-    constants.Descriptor.ShaderRegister = 1;
-    std::array parameters = {constants};
+    constants.Descriptor.ShaderRegister = 0;
+    D3D12_ROOT_PARAMETER cascadeConstants;
+    cascadeConstants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    cascadeConstants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    cascadeConstants.Descriptor.RegisterSpace = 0;
+    cascadeConstants.Descriptor.ShaderRegister = 1;
+    D3D12_DESCRIPTOR_RANGE radianceCascadeRange;
+    radianceCascadeRange.BaseShaderRegister = 0;
+    radianceCascadeRange.NumDescriptors = 1;
+    radianceCascadeRange.OffsetInDescriptorsFromTableStart = 0;
+    radianceCascadeRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    radianceCascadeRange.RegisterSpace = 0;
+    D3D12_ROOT_PARAMETER radianceCascade;
+    radianceCascade.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    radianceCascade.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    radianceCascade.DescriptorTable.NumDescriptorRanges = 1;
+    radianceCascade.DescriptorTable.pDescriptorRanges = &radianceCascadeRange;
+
+    std::array parameters = {constants, cascadeConstants, radianceCascade};
 
     D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
     rootSignatureDesc.NumParameters = (UINT)parameters.size();
-    rootSignatureDesc.NumStaticSamplers = 0;
+    rootSignatureDesc.NumStaticSamplers = 1;
     rootSignatureDesc.pParameters = parameters.data();
-    rootSignatureDesc.pStaticSamplers = nullptr;
+    rootSignatureDesc.pStaticSamplers = &m_linearSampler;
     D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, nullptr);
     assert(blob);
 
@@ -627,7 +655,15 @@ Pipeline Device::CreateCascadeDebugPipeline()
     position.InstanceDataStepRate = 0;
     position.SemanticIndex = 0;
     position.SemanticName = "Position";
-    std::array vertexInputs = {position};
+    D3D12_INPUT_ELEMENT_DESC normal;
+    normal.AlignedByteOffset = 0;
+    normal.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+    normal.InputSlot = 1;
+    normal.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+    normal.InstanceDataStepRate = 0;
+    normal.SemanticIndex = 0;
+    normal.SemanticName = "Normal"; 
+    std::array vertexInputs = {position, normal};
     streamDesc.InputLayout.desc = {vertexInputs.data(), (UINT)vertexInputs.size()};
     streamDesc.VS.desc = { DebugCascadesVS, sizeof(DebugCascadesVS) };
     streamDesc.PS.desc = { DebugCascadesPS, sizeof(DebugCascadesPS) };
@@ -955,25 +991,12 @@ Pipeline Device::CreateCascadeAccumulationPipeline()
     currentCascade.DescriptorTable.pDescriptorRanges = &currentCascadeRange;
     std::array parameters = {constants, cascadeConstants, higherCascade, currentCascade};
 
-    D3D12_STATIC_SAMPLER_DESC linearSampler;
-    linearSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    linearSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    linearSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    linearSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-    linearSampler.MaxAnisotropy = 0;
-    linearSampler.MaxLOD = 0.f;
-    linearSampler.MinLOD = 0.f;
-    linearSampler.MipLODBias = 0.f;
-    linearSampler.RegisterSpace = 0;
-    linearSampler.ShaderRegister = 0;
-    linearSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-
     D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
     rootSignatureDesc.NumParameters = (UINT)parameters.size();
     rootSignatureDesc.NumStaticSamplers = 1;
     rootSignatureDesc.pParameters = parameters.data();
-    rootSignatureDesc.pStaticSamplers = &linearSampler;
+    rootSignatureDesc.pStaticSamplers = &m_linearSampler;
     D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, nullptr);
     assert(blob);
 

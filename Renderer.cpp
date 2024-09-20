@@ -3,7 +3,7 @@
 #include "Scene.h"
 
 Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
-    : m_radianceCascades(m_device, {16, 16, 16}, {8.f, 8.f, 8.f}, {0.f, 6.f, 0.f})
+    : m_radianceCascades(m_device, {16, 16, 16}, {10.f, 10.f, 10.f}, {0.f, 6.f, 0.f}, 5)
     , m_width(width)
     , m_height(height)
 {
@@ -104,15 +104,21 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     Device::PipelineBarrierTransition(commands.List, m_raytracingTarget.Resource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 #else
 
-    auto& accelHandle = m_accelHandles[frameIndex];
-    m_accelCache[frameIndex] = scene.GetAccelerationStructure();
+    auto accelStruct = scene.GetAccelerationStructure();
+
+    D3D12_GPU_DESCRIPTOR_HANDLE accelHandle = {};
+    if(!m_freeRaytracingHandles.empty())
+    {
+        accelHandle = m_freeRaytracingHandles.back();
+        m_freeRaytracingHandles.pop_back();
+    }
 
     D3D12_SHADER_RESOURCE_VIEW_DESC accelViewDesc;
     accelViewDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
     accelViewDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     accelViewDesc.Format = DXGI_FORMAT_UNKNOWN;
-    accelViewDesc.RaytracingAccelerationStructure.Location = m_accelCache[frameIndex]->GetGPUVirtualAddress();
-    accelHandle = m_device.CreateShaderResourceView(m_accelCache[frameIndex], accelViewDesc, accelHandle);
+    accelViewDesc.RaytracingAccelerationStructure.Location = accelStruct->GetGPUVirtualAddress();
+    accelHandle = m_device.CreateShaderResourceView(accelStruct, accelViewDesc, accelHandle);
 
     auto cascadesHandle = m_radianceCascades.Generate(commands.List, accelHandle, scene.GetInstanceDataHandle());
     
@@ -137,30 +143,28 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     commands.List->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     scene.Draw(commands.List);
-#if 0
+#if 1
     struct
     {
         DirectX::XMMATRIX vp;
         DirectX::XMMATRIX model;
-        CascadeResultion resolution; uint32_t dummy0;
-        std::array<float, 3> extends; uint32_t dummy1;
-        std::array<float, 3> offset; uint32_t dummy2;
-    } CascadeConstants;
-    constexpr auto cascade = 0;
-    const auto casmul = (uint32_t)pow(2, cascade);
-    CascadeConstants.resolution = {16 / casmul, 16 / casmul, 16 / casmul};
-    CascadeConstants.extends = {8.f, 8.f, 8.f};
-    CascadeConstants.offset = {0.f, 6.f, 0.f};
-    CascadeConstants.vp = cameraConstants.viewProjection;
-    CascadeConstants.model = DirectX::XMMatrixScaling(0.005f, 0.005f, 0.005f);
+        uint32_t cascade;
+    } debugConstants;
+    debugConstants.vp = cameraConstants.viewProjection;
+    debugConstants.model = DirectX::XMMatrixScaling(0.005f, 0.005f, 0.005f);
+    debugConstants.cascade = 0;
 
-    Device::SetResourceData(m_debugCascadesConstants, CascadeConstants);
+    Device::SetResourceData(m_debugCascadesConstants, debugConstants);
 
     commands.List->SetPipelineState(m_debugCascadesPipeline.State.Get());
     commands.List->SetGraphicsRootSignature(m_debugCascadesPipeline.RootSignature.Get());
     commands.List->SetGraphicsRootConstantBufferView(0, m_debugCascadesConstants->GetGPUVirtualAddress());
+    commands.List->SetGraphicsRootConstantBufferView(1, m_radianceCascades.GetConstants()->GetGPUVirtualAddress());
+    commands.List->SetGraphicsRootDescriptorTable(2, cascadesHandle);
 
-    m_debugSphere->DrawInstanced(commands.List, 16 * 16 * 16);
+    auto& res = m_radianceCascades.GetResolution();
+    const auto div = 1 << debugConstants.cascade;
+    m_debugSphere->DrawInstanced(commands.List, res.x * res.y * res.z / (div * div * div));
 #endif
 
     barr.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -168,11 +172,17 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     commands.List->ResourceBarrier(1, &barr);
     #endif
 
-    m_device.SubmitGraphicsCommands(std::move(commands));
+    const auto submission = m_device.SubmitGraphicsCommands(std::move(commands));
+
+    m_pendingRaytracingResources.push_back({accelStruct, accelHandle, submission});
+    const auto finishedSubmission = m_device.GetCompletedSubmission();
+    while (!m_pendingRaytracingResources.empty() && m_pendingRaytracingResources.front().Submission <= finishedSubmission)
+    {
+        m_freeRaytracingHandles.push_back(m_pendingRaytracingResources.front().Handle);
+        m_pendingRaytracingResources.pop_front();
+    }
 
     m_swapChain->Present(1, 0);
 
     ++m_frameCounter;
-    
-    m_device.WaitIdle();
 }

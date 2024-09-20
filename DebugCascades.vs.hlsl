@@ -1,25 +1,50 @@
-cbuffer Constants : register(b1)
+#include "Common.hlsl"
+
+cbuffer Constants : register(b0)
 {
     float4x4 viewProjection;
     float4x4 model;
-    uint3 cascadeResolution;
-    float3 cascadeExtends;
-    float3 cascadeOffset;
+    uint cascade;
 };
 
-float4 main(in float3 position : Position, in uint cascadeIndexLinear : SV_InstanceID) : SV_Position
+cbuffer CascadeConstants : register(b1)
 {
+    uint3 resolution;
+    float3 extends;
+    float3 offset;
+    uint2 size;
+};
+
+struct VertexOut
+{
+    uint Cascade : Cascade;
+    uint CascadeIndex : CascadeIndex;
+    float2 Uv : Coord;
+    float4 Position : SV_Position;
+};
+
+VertexOut main(in float3 position : Position, in float3 normal : Normal, in uint cascadeIndexLinear : SV_InstanceID)
+{
+    // TODO use same code as in the other shaders
+    uint3 levelResolution = resolution >> cascade;
+
     uint3 cascadeIndex;
-    cascadeIndex.z = cascadeIndexLinear / (cascadeResolution.y * cascadeResolution.x);
-    cascadeIndex.y = (cascadeIndexLinear % (cascadeResolution.y * cascadeResolution.x)) / cascadeResolution.x;
-    cascadeIndex.x = cascadeIndexLinear - cascadeIndex.y * cascadeResolution.x - cascadeIndex.z * (cascadeResolution.y * cascadeResolution.x);
+    cascadeIndex.z = cascadeIndexLinear / (levelResolution.y * levelResolution.x);
+    cascadeIndex.y = (cascadeIndexLinear % (levelResolution.y * levelResolution.x)) / levelResolution.x;
+    cascadeIndex.x = cascadeIndexLinear - cascadeIndex.y * levelResolution.x - cascadeIndex.z * (levelResolution.y * levelResolution.x);
 
-    float3 cascadePosition = float3(cascadeIndex + 0.5) / float3(cascadeResolution) * 2 - 1;
-    cascadePosition *= cascadeExtends;
-    cascadePosition += cascadeOffset;
+    float3 cascadePosition = float3(cascadeIndex + 0.5) / float3(levelResolution) * 2 - 1;
+    cascadePosition *= extends;
+    cascadePosition += offset;
 
-    float3 gridRes = cascadeExtends / cascadeResolution;
+    float3 gridRes = extends / levelResolution;
 
     float3 worldPos = mul(model, float4(position * gridRes, 1)).xyz;
-    return mul(viewProjection, float4(worldPos + cascadePosition, 1.f));
+
+    VertexOut output;
+    output.Cascade = cascade;
+    output.CascadeIndex = cascadeIndexLinear;
+    output.Uv = toSpherical(normalize(normal));
+    output.Position = mul(viewProjection, float4(worldPos + cascadePosition, 1.f));
+    return output;
 }
