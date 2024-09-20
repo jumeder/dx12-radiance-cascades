@@ -91,6 +91,4 @@ void main(in uint2 index : SV_DispatchThreadId)
     float4 currLevelRad = currentCascade[index];
 
     currentCascade[index] = float4(currLevelRad.rgb + currLevelRad.a * nextLevelRad.rgb, currLevelRad.a * nextLevelRad.a);
-    //currentCascade[index] = float4(index, 0, 1);
-    //currentCascade[index] = float4(GetIndex2d(index3d, levelResolution, size.x / pixelCount.x), 0, 1);
 }

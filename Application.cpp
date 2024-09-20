@@ -22,7 +22,7 @@ Application::Application(uint32_t width, uint32_t height)
 
     m_scene = std::make_unique<Scene>(m_renderer->GetDevice());
     m_scene->AddInstance(*m_sponza, DirectX::XMMatrixScaling(0.01f, 0.01f, 0.01f), DirectX::XMVECTOR{0.f, 0.5f, 0.5f, 1.f}, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f});
-    m_sphereInstance = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{4.f, 4.f, 4.f, 1.f});
+    m_sphereInstance = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{20.f, 20.f, 20.f, 1.f});
 }
 
 Application::~Application()

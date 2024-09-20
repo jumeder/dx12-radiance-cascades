@@ -30,9 +30,8 @@ uint2 GetIndex2d(uint3 index3d, uint3 resolution, uint probeCountX)
 float4 SingleSample(float2 uv, uint3 resolution, uint probeCountX, uint2 pixelCount, uint3 index3d)
 {
     uint2 index2d = GetIndex2d(index3d, resolution, probeCountX);
-    //float2 coord = index2d * pixelCount + localCoord;
     float2 uvSize = float2(pixelCount) / size; // TODO optimize
-    float2 coord = index2d + 0.5;
+    float2 coord = index2d + uv;
     return RadianceCascade.SampleLevel(linearSampler, coord * uvSize, 0); // TODO optimize
 }
 
@@ -77,9 +76,17 @@ float4 main(in PixelIn input) : SV_Target
 {
     float3 cascadePos = ((input.WorldPosition - offset) / extends * 0.5 + 0.5) * resolution;
 
-    //float3 v = normalize(CameraPosition - input.WorldPosition);
+    // TODO need to transform input normal
+
+    float3 v = normalize(CameraPosition - input.WorldPosition);
     float3 l = float3(1.f, 1.f, 1.f);
     float3 n = normalize(input.Normal);
-    return input.Albedo * max(0.05, dot(n, l) / M_PI) + input.Emission;
-    //return input.Emission + input.Albedo * SampleCascade(toSpherical(input.Normal), cascadePos);
+    //return input.Albedo * max(0.05, dot(n, l) / M_PI) + input.Emission;
+    //return float4(n, 1);
+    return input.Emission 
+    + input.Albedo * SampleCascade(float2(0.25, 0.25), cascadePos) * max(0, dot(fromSpherical(float2(0.25, 0.25)), n))
+    + input.Albedo * SampleCascade(float2(0.25, 0.75), cascadePos) * max(0, dot(fromSpherical(float2(0.25, 0.75)), n))
+    + input.Albedo * SampleCascade(float2(0.75, 0.25), cascadePos) * max(0, dot(fromSpherical(float2(0.75, 0.25)), n))
+    + input.Albedo * SampleCascade(float2(0.75, 0.75), cascadePos) * max(0, dot(fromSpherical(float2(0.75, 0.75)), n))
+    + input.Albedo * SampleCascade(toSpherical(n), cascadePos);
 }

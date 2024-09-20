@@ -115,7 +115,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE RadianceCascades::Generate(const ComPtr<ID3D12Graphi
         constexpr auto groupSize = 8;
         const uint32_t x = (m_cascadePixelsX + groupSize - 1) / groupSize;
         const uint32_t y = (m_cascadePixelsY + groupSize - 1) / groupSize;
-        //commandList->Dispatch(x, y, 1);
+        commandList->Dispatch(x, y, 1);
     }
     Device::PipelineBarrierTransition(commandList, m_cascades, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, 0);
 
