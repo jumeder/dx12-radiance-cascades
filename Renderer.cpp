@@ -186,3 +186,8 @@ void Renderer::Render(const Camera& camera, Scene& scene)
 
     ++m_frameCounter;
 }
+
+void Renderer::Finish()
+{
+    m_device.Finish();
+}

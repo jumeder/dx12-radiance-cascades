@@ -14,6 +14,8 @@ public:
 
     void Render(const Camera& camera, Scene& scene);
 
+    void Finish();
+
     inline auto& GetDevice() { return m_device; }
 
 private:

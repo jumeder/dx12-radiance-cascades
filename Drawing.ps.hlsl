@@ -78,7 +78,7 @@ float4 main(in PixelIn input) : SV_Target
 
     // TODO need to transform input normal
 
-    float3 v = normalize(CameraPosition - input.WorldPosition);
+    //float3 v = normalize(CameraPosition - input.WorldPosition);
     float3 l = float3(1.f, 1.f, 1.f);
     float3 n = normalize(input.Normal);
     //return input.Albedo * max(0.05, dot(n, l) / M_PI) + input.Emission;

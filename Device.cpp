@@ -55,6 +55,7 @@ Device::Device()
 
 Device::~Device()
 {
+    Finish();
     CloseHandle(m_submissionEvent);
 }
 
@@ -217,7 +218,7 @@ ComPtr<ID3D12Resource> Device::CreateBottomLevelAccelerationStructure(const Vert
     device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
 
     const auto scratch = CreateBuffer(roundUp(info.ScratchDataSizeInBytes, 256), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-    const auto ret = CreateBuffer(roundUp(info.ResultDataMaxSizeInBytes, 256), D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+    const auto ret = CreateBuffer(roundUp(info.ResultDataMaxSizeInBytes, 256), D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
     buildDesc.Inputs = inputs;
@@ -270,7 +271,7 @@ ComPtr<ID3D12Resource> Device::CreateTopLevelAccelerationStructure(const ComPtr<
     }
 
     // TODO can we optimize this allocation?
-    const auto ret = CreateBuffer(roundUp(info.ResultDataMaxSizeInBytes, 256), D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS); 
+    const auto ret = CreateBuffer(roundUp(info.ResultDataMaxSizeInBytes, 256), D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS); 
 
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
     buildDesc.Inputs = inputs;
@@ -397,7 +398,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE Device::CreateUnorderedAccessView(const ComPtr<ID3D1
     return gpuHandle;
 }
 
-D3D12_GPU_DESCRIPTOR_HANDLE Device::CreateUnorderedAccessViews(const ComPtr<ID3D12Resource>* resources, const uint64_t count, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc)
+D3D12_GPU_DESCRIPTOR_HANDLE Device::CreateUnorderedAccessViews(const ComPtr<ID3D12Resource>* resources, const uint32_t count, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc)
 {
     D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_srvHeap->GetCPUDescriptorHandleForHeapStart() + m_srvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_srvHeap->GetGPUDescriptorHandleForHeapStart() + m_srvPos * m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -1045,6 +1046,12 @@ void Device::SetDescriptorHeaps(const ComPtr<ID3D12GraphicsCommandList>& command
 {
     auto srvHeap = m_srvHeap.Get();
     commandList->SetDescriptorHeaps(1, &srvHeap);
+}
+
+void Device::Finish()
+{
+    m_queue->Signal(m_submissionFence.Get(), ++m_submissionCounter);
+    WaitIdle();
 }
 
 void Device::WaitIdle()

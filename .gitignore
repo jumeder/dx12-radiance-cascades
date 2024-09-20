@@ -1,3 +1,4 @@
 bin
 cmakeCache
+generated
 .vscode

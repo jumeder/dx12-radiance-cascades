@@ -67,7 +67,7 @@ public:
     D3D12_CPU_DESCRIPTOR_HANDLE CreateDepthStencilView(const ComPtr<ID3D12Resource>& resource, DXGI_FORMAT format);
     D3D12_GPU_DESCRIPTOR_HANDLE CreateShaderResourceView(const ComPtr<ID3D12Resource> resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc, D3D12_GPU_DESCRIPTOR_HANDLE oldHandle = {});
     D3D12_GPU_DESCRIPTOR_HANDLE CreateUnorderedAccessView(const ComPtr<ID3D12Resource>& resource, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc);
-    D3D12_GPU_DESCRIPTOR_HANDLE CreateUnorderedAccessViews(const ComPtr<ID3D12Resource>* resources, const uint64_t count, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc);
+    D3D12_GPU_DESCRIPTOR_HANDLE CreateUnorderedAccessViews(const ComPtr<ID3D12Resource>* resources, uint32_t count, const D3D12_UNORDERED_ACCESS_VIEW_DESC& desc);
     D3D12_CPU_DESCRIPTOR_HANDLE CreateSampler(const D3D12_SAMPLER_DESC& desc);
 
     Pipeline CreateDrawingPipeline();
@@ -78,6 +78,7 @@ public:
 
     void SetDescriptorHeaps(const ComPtr<ID3D12GraphicsCommandList>& commandList);
 
+    void Finish();
     void WaitIdle();
 
     inline uint64_t GetCompletedSubmission() const { return m_submissionFence->GetCompletedValue(); }
