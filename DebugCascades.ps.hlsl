@@ -12,10 +12,10 @@ cbuffer CascadeConstants : register(b1)
     uint3 resolution;
     float3 extends;
     float3 offset;
-    uint2 size;
+    uint3 size;
 };
 
-Texture2D<float4> RadianceCascade : register(t0);
+Texture2DArray<float4> RadianceCascade : register(t0);
 SamplerState linearSampler : register(s0);
 /*
 uint2 GetIndex2d(uint3 index3d, uint3 resolution, uint probeCountX)
@@ -71,20 +71,26 @@ float4 SampleCascade(float2 uv, float3 pos)
 }
 */
 
-float4 SampleCascade(uint cascade, uint cascadeIndex, float2 uv)
+float4 SampleCascade(uint cascade, uint3 index3d, float2 uv)
 {
     uint2 pixelCount = GetPixelCount(cascade);
-    uint probeCountX = size.x / pixelCount.x;
-    uint2 index2d = uint2(cascadeIndex % probeCountX, cascadeIndex / probeCountX);
 
-    float2 coord = index2d * pixelCount + clamp(uv * pixelCount, float2(0.5, 0.5), pixelCount - 0.5);
+    // TODO clamp
+    float3 coord = { (index3d.xy + uv) * pixelCount, index3d.z};
 
     return RadianceCascade.SampleLevel(linearSampler, coord / size, 0); // TODO optimize
 }
 
-float4 main(in uint cascade : Cascade, in uint cascadeIndex : CascadeIndex, in float2 uv : Coord) : SV_Target
+struct PixelIn
 {
-    float4 s = SampleCascade(cascade, cascadeIndex, uv);
+    uint3 Index : Indexs;
+    float3 Dir : Direction;
+    float4 Position : SV_Position;
+};
+
+float4 main(in PixelIn input) : SV_Target
+{
+    float4 s = SampleCascade(cascade, input.Index, toSpherical(input.Dir));
     return s;
     
     #if 0

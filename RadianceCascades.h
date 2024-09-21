@@ -35,15 +35,15 @@ public:
 private:
     State m_cascadeGenerationPipeline;
     Pipeline m_cascadeAccumulationPipeline;
-    ComPtr<ID3D12Resource> m_cascades;
+    std::vector<ComPtr<ID3D12Resource>> m_cascades;
     ComPtr<ID3D12Resource> m_tracingConstants;
     std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> m_cascadeUavs;
     std::vector<D3D12_GPU_DESCRIPTOR_HANDLE> m_cascadeSrvs;
-    D3D12_GPU_DESCRIPTOR_HANDLE m_cascadesUav;
     CascadeResultion m_resolution;
     CascadeExtends m_extends;
     CascadeOffset m_offset;
     uint32_t m_count = 0;
     uint32_t m_cascadePixelsX = 0;
     uint32_t m_cascadePixelsY = 0;
+    uint32_t m_cascadePixelsZ = 0;
 };

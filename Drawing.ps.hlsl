@@ -81,12 +81,14 @@ float4 main(in PixelIn input) : SV_Target
     //float3 v = normalize(CameraPosition - input.WorldPosition);
     float3 l = float3(1.f, 1.f, 1.f);
     float3 n = normalize(input.Normal);
-    //return input.Albedo * max(0.05, dot(n, l) / M_PI) + input.Emission;
+    return float4(input.Normal, 1);// input.Albedo * max(0.05, dot(n, l) / M_PI) + input.Emission;
     //return float4(n, 1);
+    /*
     return input.Emission 
     + input.Albedo * SampleCascade(float2(0.25, 0.25), cascadePos) * max(0, dot(fromSpherical(float2(0.25, 0.25)), n))
     + input.Albedo * SampleCascade(float2(0.25, 0.75), cascadePos) * max(0, dot(fromSpherical(float2(0.25, 0.75)), n))
     + input.Albedo * SampleCascade(float2(0.75, 0.25), cascadePos) * max(0, dot(fromSpherical(float2(0.75, 0.25)), n))
     + input.Albedo * SampleCascade(float2(0.75, 0.75), cascadePos) * max(0, dot(fromSpherical(float2(0.75, 0.75)), n))
     + input.Albedo * SampleCascade(toSpherical(n), cascadePos);
+    */
 }

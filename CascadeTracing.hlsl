@@ -3,12 +3,12 @@
 // TODO refactor
 cbuffer Constants : register(b0)
 {
-    uint UNUSED_cascade;
+    uint cascade;
 };
 
 cbuffer CascadeConstants : register(b1)
 {
-    uint3 resolution;
+    uint3 probeCount;
     float3 extends;
     float3 offset;
     uint2 size;
@@ -29,24 +29,17 @@ struct RayPayload
 [shader("raygeneration")]
 void RayGen()
 {
-    uint2 index = DispatchRaysIndex().xy;
-    uint cascade = DispatchRaysIndex().z;
+    uint3 pixelIndex = uint3(DispatchRaysIndex());
+
     uint2 pixelCount = GetPixelCount(cascade);
-    uint3 levelResolution = resolution >> cascade;
+    uint3 index3d = uint3(DispatchRaysIndex().xy / pixelCount, DispatchRaysIndex().z);
+    uint3 levelProbeCount = probeCount >> cascade;
 
-    uint2 index2d = index / pixelCount;
-    uint cascadeIndexLinear = index2d.y * size.x / pixelCount.x + index2d.x;
-
-    uint3 index3d;
-    index3d.z = cascadeIndexLinear / (levelResolution.y * levelResolution.x);
-    index3d.y = (cascadeIndexLinear % (levelResolution.y * levelResolution.x)) / levelResolution.x;
-    index3d.x = cascadeIndexLinear - index3d.y * levelResolution.x - index3d.z * (levelResolution.y * levelResolution.x);
-
-    float3 cascadePosition = float3(index3d + 0.5) / float3(levelResolution) * 2 - 1;
+    float3 cascadePosition = float3(index3d + 0.5) / float3(levelProbeCount) * 2 - 1;
     cascadePosition *= extends;
     cascadePosition += offset;
 
-    float2 uv = (float2(index) - float2(index2d * pixelCount) + 0.5) / float2(pixelCount);
+    float2 uv = (pixelIndex.xy - index3d.xy * pixelCount + 0.5) / float2(pixelCount);
     float3 rayStart = cascadePosition;
     float3 rayDir = fromSpherical(uv);
 
@@ -63,7 +56,7 @@ void RayGen()
 
     TraceRay(Scene, 0, ~0, 0, 0, 0, ray, payload);
 
-    Cascades[DispatchRaysIndex()] = payload.color;
+    Cascades[DispatchRaysIndex()] = float4(rayDir, 1);// payload.color;
     //Cascades[uint3(index, cascade)] = float4(rayDir, 1);
 }
 

@@ -9,24 +9,23 @@ cbuffer Constants : register(b0)
 
 cbuffer CascadeConstants : register(b1)
 {
-    uint3 resolution;
+    uint3 probeCount;
     float3 extends;
     float3 offset;
-    uint2 size;
+    uint3 size;
 };
 
 struct VertexOut
 {
-    uint Cascade : Cascade;
-    uint CascadeIndex : CascadeIndex;
-    float2 Uv : Coord;
+    uint3 Index : Indexs;
+    float3 Dir : Direction;
     float4 Position : SV_Position;
 };
 
 VertexOut main(in float3 position : Position, in float3 normal : Normal, in uint cascadeIndexLinear : SV_InstanceID)
 {
     // TODO use same code as in the other shaders
-    uint3 levelResolution = resolution >> cascade;
+    uint3 levelResolution = probeCount >> cascade;
 
     uint3 cascadeIndex;
     cascadeIndex.z = cascadeIndexLinear / (levelResolution.y * levelResolution.x);
@@ -42,9 +41,8 @@ VertexOut main(in float3 position : Position, in float3 normal : Normal, in uint
     float3 worldPos = mul(model, float4(position * gridRes, 1)).xyz;
 
     VertexOut output;
-    output.Cascade = cascade;
-    output.CascadeIndex = cascadeIndexLinear;
-    output.Uv = toSpherical(normalize(normal));
+    output.Index = cascadeIndex;
+    output.Dir = normalize(normal);
     output.Position = mul(viewProjection, float4(worldPos + cascadePosition, 1.f));
     return output;
 }

@@ -3,7 +3,7 @@
 #include "Scene.h"
 
 Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
-    : m_radianceCascades(m_device, {64, 64, 64}, {14.f, 8.f, 8.f}, {0.f, 6.f, 0.f}, 5)
+    : m_radianceCascades(m_device, {16, 16, 16}, {14.f, 8.f, 8.f}, {0.f, 6.f, 0.f}, 5)
     , m_width(width)
     , m_height(height)
 {
@@ -143,7 +143,7 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     commands.List->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     scene.Draw(commands.List);
-#if 0
+#if 1
     struct
     {
         DirectX::XMMATRIX vp;
