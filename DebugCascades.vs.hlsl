@@ -12,7 +12,7 @@ cbuffer CascadeConstants : register(b1)
     uint3 probeCount;
     float3 extends;
     float3 offset;
-    uint3 size;
+    uint2 size;
 };
 
 struct VertexOut

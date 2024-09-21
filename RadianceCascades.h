@@ -26,7 +26,7 @@ class RadianceCascades
 public:
     RadianceCascades(Device& device, const CascadeResultion& resolution, const CascadeExtends& extends, const CascadeOffset& offset, uint32_t cascadeCount = 5);
 
-    D3D12_GPU_DESCRIPTOR_HANDLE Generate(const ComPtr<ID3D12GraphicsCommandList>& commandList, D3D12_GPU_DESCRIPTOR_HANDLE accelerationStructure, D3D12_GPU_DESCRIPTOR_HANDLE instanceData);
+    const std::vector<D3D12_GPU_DESCRIPTOR_HANDLE>& Generate(const ComPtr<ID3D12GraphicsCommandList>& commandList, D3D12_GPU_DESCRIPTOR_HANDLE accelerationStructure, D3D12_GPU_DESCRIPTOR_HANDLE instanceData);
 
     inline auto& GetConstants() const { return m_tracingConstants; }
 

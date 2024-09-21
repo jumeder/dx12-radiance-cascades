@@ -30,6 +30,7 @@ private:
     std::unique_ptr<Scene> m_scene;
 
     uint32_t m_sphereInstance;
+    uint32_t m_sphereInstance2;
 
     bool m_mouseDown = false;
     double m_lastMouseX = 0.f;

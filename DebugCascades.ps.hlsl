@@ -9,10 +9,10 @@ cbuffer Constants : register(b0)
 
 cbuffer CascadeConstants : register(b1)
 {
-    uint3 resolution;
+    uint3 probeCount;
     float3 extends;
     float3 offset;
-    uint3 size;
+    uint2 size;
 };
 
 Texture2DArray<float4> RadianceCascade : register(t0);
@@ -76,9 +76,10 @@ float4 SampleCascade(uint cascade, uint3 index3d, float2 uv)
     uint2 pixelCount = GetPixelCount(cascade);
 
     // TODO clamp
-    float3 coord = { (index3d.xy + uv) * pixelCount, index3d.z};
+    float2 pixelCoord = clamp(uv * pixelCount, 0.5f, pixelCount - 0.5f);
+    float2 coord = (index3d.xy * pixelCount + pixelCoord) / size.xy;
 
-    return RadianceCascade.SampleLevel(linearSampler, coord / size, 0); // TODO optimize
+    return RadianceCascade.SampleLevel(linearSampler, float3(coord, index3d.z), 0); // TODO optimize
 }
 
 struct PixelIn

@@ -24,6 +24,12 @@ struct RayPayload
     float4 color;
 };
 
+float GetEnd(int cascade)
+{
+    const float interval = 1.f;  
+    return (interval * (1 - pow(8, cascade + 1))) / (1 - 8);
+}
+
 // TODO function to compute spherical coords from ray coords and cascade index
 
 [shader("raygeneration")]
@@ -43,21 +49,21 @@ void RayGen()
     float3 rayStart = cascadePosition;
     float3 rayDir = fromSpherical(uv);
 
-    float start = cascade == 0.f ? 0.001f : float(1u << (cascade  - 1));
-    float end = float(1u << cascade);
+    float start = GetEnd((int)cascade - 1);
+    float end = GetEnd(cascade);
 
     RayDesc ray;
     ray.Origin = rayStart;
     ray.Direction = rayDir;
-    ray.TMin = start; // TODO these need to be scaled by the true distances between the probes
+    ray.TMin = 0.01f + start; // TODO these need to be scaled by the true distances between the probes
     ray.TMax = end;
 
     RayPayload payload = { float4(0, 0, 0, 0) };
 
-    TraceRay(Scene, 0, ~0, 0, 0, 0, ray, payload);
+    TraceRay(Scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 0, 0, ray, payload);
 
-    Cascades[DispatchRaysIndex()] = float4(rayDir, 1);// payload.color;
-    //Cascades[uint3(index, cascade)] = float4(rayDir, 1);
+    Cascades[DispatchRaysIndex()] = payload.color;
+   // Cascades[DispatchRaysIndex()] = float4(rayStart, 1);
 }
 
 [shader("closesthit")]

@@ -7,54 +7,48 @@ cbuffer Constants : register(b0)
 
 cbuffer CascadeConstants : register(b1)
 {
-    uint3 resolution;
+    uint3 probeCount;
     float3 extends;
     float3 offset;
     uint2 size;
 };
 
-Texture2D<float4> higherCascade : register(t0);
-RWTexture2D<float4> currentCascade : register(u0);
+Texture2DArray<float4> higherCascade : register(t0);
+RWTexture2DArray<float4> currentCascade : register(u0);
 SamplerState linearSampler : register(s0);
 
-uint2 GetIndex2d(uint3 index3d, uint3 resolution, uint probeCountX)
+// TODO move this code to inclusion file
+float4 SingleSample(float3 pixelCoord)
 {
-    uint indexLinear = index3d.z * resolution.y * resolution.x + index3d.y * resolution.x + index3d.x;
-    return uint2(indexLinear % probeCountX, indexLinear / probeCountX); 
-}
-
-float4 SingleSample(float2 localCoord, uint3 resolution, uint probeCountX, uint2 pixelCount, uint3 index3d)
-{
-    uint2 index2d = GetIndex2d(index3d, resolution, probeCountX);
-    float2 coord = index2d * pixelCount + localCoord;
-    return higherCascade.SampleLevel(linearSampler, coord / size, 0); // TODO optimize
+    return higherCascade.SampleLevel(linearSampler, float3(pixelCoord.xy / size.xy, pixelCoord.z), 0);
 }
 
 float4 SampleHigherCascade(float2 uv, float3 pos)
 {
     // TODO fetch 8 samples
     // TODO need to clamp to the inside of the cascade
+    uint3 nextCascadeProbeCount = probeCount >> (cascade + 1);
+    uint2 hpixelCount = GetPixelCount(cascade + 1);
 
-    uint2 higherPixelCount = GetPixelCount(cascade + 1);
-    uint3 higherResolution = resolution >> (cascade + 1);
-    uint probeCountX = size.x / higherPixelCount.x;
-
-     // TODO is this correct?
-    float3 higherPos = pos * higherResolution;
+    // TODO is this correct?
+    float3 higherPos = pos * nextCascadeProbeCount;
+    
     float3 t = frac(higherPos) - 0.5;
     float3 interp = t < 0 ? 1 + t : t;
-    float3 ll = t < 0 ? floor(higherPos) - 1 : floor(higherPos); // TODO clamping
+    float3 ll = t < 0.f ? floor(higherPos) - 1 : floor(higherPos); // TODO clamping
+    // float3 ll = floor(higherPos);
 
-    float2 localPixelCoord = uv * higherPixelCount;
+    float3 pixelCoordll = float3(ll.xy * hpixelCount + uv * hpixelCount, ll.z);
+
     float4 samples[8] = {
-        SingleSample(localPixelCoord, higherResolution, probeCountX, higherPixelCount, clamp(ll + float3(0, 0, 0), 0.f, higherResolution)),
-        SingleSample(localPixelCoord, higherResolution, probeCountX, higherPixelCount, clamp(ll + float3(1, 0, 0), 0.f, higherResolution)),
-        SingleSample(localPixelCoord, higherResolution, probeCountX, higherPixelCount, clamp(ll + float3(0, 1, 0), 0.f, higherResolution)),
-        SingleSample(localPixelCoord, higherResolution, probeCountX, higherPixelCount, clamp(ll + float3(1, 1, 0), 0.f, higherResolution)),
-        SingleSample(localPixelCoord, higherResolution, probeCountX, higherPixelCount, clamp(ll + float3(0, 0, 1), 0.f, higherResolution)),
-        SingleSample(localPixelCoord, higherResolution, probeCountX, higherPixelCount, clamp(ll + float3(1, 0, 1), 0.f, higherResolution)),
-        SingleSample(localPixelCoord, higherResolution, probeCountX, higherPixelCount, clamp(ll + float3(0, 1, 1), 0.f, higherResolution)),
-        SingleSample(localPixelCoord, higherResolution, probeCountX, higherPixelCount, clamp(ll + float3(1, 1, 1), 0.f, higherResolution)),
+        SingleSample(pixelCoordll + float3(0, 0, 0)),
+        SingleSample(pixelCoordll + float3(hpixelCount.x, 0, 0)),
+        SingleSample(pixelCoordll + float3(0, hpixelCount.y, 0)),
+        SingleSample(pixelCoordll + float3(hpixelCount.xy, 0)),
+        SingleSample(pixelCoordll + float3(0, 0, 1)),
+        SingleSample(pixelCoordll + float3(hpixelCount.x, 0, 1)),
+        SingleSample(pixelCoordll + float3(0, hpixelCount.y, 1)),
+        SingleSample(pixelCoordll + float3(hpixelCount.xy, 1))
     };
 
     float4 lerpX[4];
@@ -70,25 +64,20 @@ float4 SampleHigherCascade(float2 uv, float3 pos)
     return lerp(lerpY[0], lerpY[1], interp.z);
 }
 
-[numthreads(8, 8, 1)]
-void main(in uint2 index : SV_DispatchThreadId)
+[numthreads(4, 4, 4)]
+void main(in uint3 index : SV_DispatchThreadId)
 {
     uint2 pixelCount = GetPixelCount(cascade);
-    uint3 levelResolution = resolution >> cascade;
+    uint3 index3d = uint3(index.xy / pixelCount, index.z);
+    uint3 levelResolution = probeCount >> cascade;
 
-    uint2 index2d = index / pixelCount;
-    uint cascadeIndexLinear = index2d.y * size.x / pixelCount.x + index2d.x;
-
-    uint3 index3d;
-    index3d.z = cascadeIndexLinear / (levelResolution.y * levelResolution.x);
-    index3d.y = (cascadeIndexLinear % (levelResolution.y * levelResolution.x)) / levelResolution.x;
-    index3d.x = cascadeIndexLinear - index3d.y * levelResolution.x - index3d.z * (levelResolution.y * levelResolution.x);
-
-    float2 uv = (float2(index) - float2(index2d * pixelCount) + 0.5) / float2(pixelCount);
+    float2 uv = (float2(index.xy) - float2(index3d.xy * pixelCount) + 0.5) / float2(pixelCount);
     float3 pos = float3(index3d + 0.5) / float3(levelResolution);
 
     float4 nextLevelRad = SampleHigherCascade(uv, pos);
     float4 currLevelRad = currentCascade[index];
 
     currentCascade[index] = float4(currLevelRad.rgb + currLevelRad.a * nextLevelRad.rgb, currLevelRad.a * nextLevelRad.a);
+    //currentCascade[index] = currLevelRad.aaaa;
+    //currentCascade[index] = float4(pos, 1.f);
 }

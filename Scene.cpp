@@ -75,7 +75,7 @@ uint32_t Scene::AddInstance(const Model& model, const DirectX::XMMATRIX& transfo
 
     auto& instanceBuildData = buildData[instanceId];
     instanceBuildData.AccelerationStructure = model.GetBLAS()->GetGPUVirtualAddress();
-    instanceBuildData.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE;
+    instanceBuildData.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE; //D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE;
     instanceBuildData.InstanceContributionToHitGroupIndex = 0;
     instanceBuildData.InstanceID = instanceId;
     instanceBuildData.InstanceMask = 0xFF;

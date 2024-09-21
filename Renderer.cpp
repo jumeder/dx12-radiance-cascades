@@ -3,7 +3,7 @@
 #include "Scene.h"
 
 Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
-    : m_radianceCascades(m_device, {16, 16, 16}, {14.f, 8.f, 8.f}, {0.f, 6.f, 0.f}, 5)
+    : m_radianceCascades(m_device, {16, 16, 16}, {14.f, 8.f, 8.f}, {0.f, 6.f, 0.f}, 4)
     , m_width(width)
     , m_height(height)
 {
@@ -120,7 +120,7 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     accelViewDesc.RaytracingAccelerationStructure.Location = accelStruct->GetGPUVirtualAddress();
     accelHandle = m_device.CreateShaderResourceView(accelStruct, accelViewDesc, accelHandle);
 
-    auto cascadesHandle = m_radianceCascades.Generate(commands.List, accelHandle, scene.GetInstanceDataHandle());
+    auto& cascadesHandles = m_radianceCascades.Generate(commands.List, accelHandle, scene.GetInstanceDataHandle());
     
     commands.List->SetPipelineState(m_drawingPipeline.State.Get());
     commands.List->SetGraphicsRootSignature(m_drawingPipeline.RootSignature.Get());
@@ -134,7 +134,7 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     commands.List->SetGraphicsRootConstantBufferView(0, m_cameraConstants->GetGPUVirtualAddress());
     commands.List->SetGraphicsRootDescriptorTable(1, scene.GetInstanceDataHandle());
     commands.List->SetGraphicsRootConstantBufferView(3, m_radianceCascades.GetConstants()->GetGPUVirtualAddress());
-    commands.List->SetGraphicsRootDescriptorTable(4, cascadesHandle);
+    commands.List->SetGraphicsRootDescriptorTable(4, cascadesHandles[0]);
     
     D3D12_VIEWPORT viewport = {0.f, 0.f, (float)m_width, (float)m_height, 0.f, 1.f};
     commands.List->RSSetScissorRects(1, &rect);
@@ -143,7 +143,8 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     commands.List->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     scene.Draw(commands.List);
-#if 1
+
+#if 0
     struct
     {
         DirectX::XMMATRIX vp;
@@ -160,7 +161,7 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     commands.List->SetGraphicsRootSignature(m_debugCascadesPipeline.RootSignature.Get());
     commands.List->SetGraphicsRootConstantBufferView(0, m_debugCascadesConstants->GetGPUVirtualAddress());
     commands.List->SetGraphicsRootConstantBufferView(1, m_radianceCascades.GetConstants()->GetGPUVirtualAddress());
-    commands.List->SetGraphicsRootDescriptorTable(2, cascadesHandle);
+    commands.List->SetGraphicsRootDescriptorTable(2, cascadesHandles[debugConstants.cascade]);
 
     auto& res = m_radianceCascades.GetResolution();
     const auto div = 1 << debugConstants.cascade;
