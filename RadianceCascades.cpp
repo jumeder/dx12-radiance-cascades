@@ -91,8 +91,6 @@ const std::vector<D3D12_GPU_DESCRIPTOR_HANDLE>& RadianceCascades::Generate(const
         commandList4->DispatchRays(&rays);
     }
 
-    // TODO compute shader for cascade accumulation
-
     commandList->SetPipelineState(m_cascadeAccumulationPipeline.State.Get());
     commandList->SetComputeRootSignature(m_cascadeAccumulationPipeline.RootSignature.Get());
     commandList->SetComputeRootConstantBufferView(1, m_tracingConstants->GetGPUVirtualAddress());

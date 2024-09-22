@@ -21,7 +21,6 @@ Texture2DArray<float4> RadianceCascade : register(t1);
 
 SamplerState linearSampler : register(s0);
 
-// TODO move this code to inclusion file
 float4 SingleSample(float3 pixelCoord)
 {
     return RadianceCascade.SampleLevel(linearSampler, float3(pixelCoord.xy / size.xy, pixelCoord.z), 0);
@@ -85,6 +84,6 @@ float4 main(in PixelIn input) : SV_Target
     float3 cascadePos = (input.WorldPosition + 0.1 * n - offset) / extends * 0.5 + 0.5;
 
     float3 l = float3(1.f, 1.f, 1.f);
-    
+
     return integrateCascades(n, cascadePos) * input.Albedo + input.Emission;
 }

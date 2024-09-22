@@ -16,7 +16,6 @@ project(dx12-radiance-cascades VERSION 0.1.0 LANGUAGES C CXX)
 
 add_shader(Drawing.vs.hlsl vs_6_0 generated/Drawing.vs.h DrawingVS)
 add_shader(Drawing.ps.hlsl ps_6_0 generated/Drawing.ps.h DrawingPS)
-add_shader(Raytracing.hlsl lib_6_3 generated/Raytracing.h Raytracing)
 add_shader(CascadeTracing.hlsl lib_6_3 generated/CascadeTracing.h CascadeTracing)
 add_shader(CascadeAccumulation.hlsl cs_6_0 generated/CascadeAccumulation.h CascadeAccumulation)
 add_shader(DebugCascades.vs.hlsl vs_6_0 generated/DebugCascades.vs.h DebugCascadesVS)
@@ -32,7 +31,6 @@ add_executable(dx12-radiance-cascades
     Scene.cpp
     generated/Drawing.vs.h
     generated/Drawing.ps.h
-    generated/RayTracing.h
     generated/CascadeTracing.h
     generated/CascadeAccumulation.h
     generated/DebugCascades.vs.h

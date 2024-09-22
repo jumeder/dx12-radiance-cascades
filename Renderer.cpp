@@ -3,7 +3,7 @@
 #include "Scene.h"
 
 Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
-    : m_radianceCascades(m_device, {32, 32, 32}, {1.f, 1.f, 1.f}, {0.f, 1.f, 0.f}, 3)
+    : m_radianceCascades(m_device, {32, 32, 32}, {1.f, 1.f, 1.f}, {0.f, 1.f, 0.f}, 4)
     , m_width(width)
     , m_height(height)
 {
@@ -23,13 +23,6 @@ Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
     m_debugSphere = std::make_unique<Model>("d:\\Scenes\\Test\\Sphere.glb", m_device);
     m_debugCascadesPipeline = m_device.CreateCascadeDebugPipeline();
     m_debugCascadesConstants = m_device.CreateBuffer(256, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_NONE, true);
-
-#if 0
-    m_raytracingPipeline = m_device.CreateRayTracingPipeline();
-    m_raytracingConstants = m_device.CreateBuffer(256, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_NONE, true);
-    m_raytracingTarget.Resource = m_device.CreateTexture(DXGI_FORMAT_B8G8R8A8_UNORM, m_width, m_height, 1, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-    m_raytracingTarget.GpuHandle = m_device.CreateUnorderedAccessView(m_raytracingTarget.Resource, DXGI_FORMAT_B8G8R8A8_UNORM);
-#endif
 }
 
 void Renderer::Render(const Camera& camera, Scene& scene)
@@ -53,56 +46,6 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     commands.List->ClearDepthStencilView(m_depthStencil.CpuHandle, D3D12_CLEAR_FLAG_DEPTH, 0.f, 0, 1, &rect);
 
     scene.Update(commands.List);
-
-#if 0
-    auto& accelHandle = m_accelHandles[frameIndex];
-    auto& accelStruct = scene.GetAccelerationStructure();
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC accelViewDesc;
-    accelViewDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
-    accelViewDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    accelViewDesc.Format = DXGI_FORMAT_UNKNOWN;
-    accelViewDesc.RaytracingAccelerationStructure.Location = accelStruct->GetGPUVirtualAddress();
-    accelHandle = m_device.CreateShaderResourceView(accelStruct, accelViewDesc, accelHandle);
-
-    struct
-    {
-        DirectX::XMMATRIX viewTransform;
-        float aspect;
-    } RayTracingConstants;
-    RayTracingConstants.viewTransform = camera.GetTransform();
-    RayTracingConstants.aspect = (float)m_height / m_width;
-    
-    m_device.SetResourceData(m_raytracingConstants, RayTracingConstants);
-
-    ComPtr<ID3D12GraphicsCommandList4> commandList;
-    commands.List.As(&commandList);
-    assert(commandList);
-    commandList->SetPipelineState1(m_raytracingPipeline.Object.Get());
-
-    commands.List->SetComputeRootSignature(m_raytracingPipeline.RootSignature.Get());
-    commands.List->SetComputeRootConstantBufferView(0, m_raytracingConstants->GetGPUVirtualAddress());
-    commands.List->SetComputeRootDescriptorTable(1, accelHandle);
-    commands.List->SetComputeRootDescriptorTable(2, scene.GetInstanceDataHandle());
-    commands.List->SetComputeRootDescriptorTable(3, m_raytracingTarget.GpuHandle);
-
-    D3D12_DISPATCH_RAYS_DESC rays = {};
-    rays.Width = m_width;
-    rays.Height = m_height;
-    rays.Depth = 1;
-    rays.RayGenerationShaderRecord = m_raytracingPipeline.RayGenRange;
-    rays.MissShaderTable = m_raytracingPipeline.RayMissRange;
-    rays.HitGroupTable = m_raytracingPipeline.RayHitRange;
-    commandList->DispatchRays(&rays);
-
-    Device::PipelineBarrierTransition(commands.List, m_raytracingTarget.Resource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    Device::PipelineBarrierTransition(commands.List, frameTarget.Resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_DEST);
-
-    commands.List->CopyResource(frameTarget.Resource.Get(), m_raytracingTarget.Resource.Get());
-
-    Device::PipelineBarrierTransition(commands.List, frameTarget.Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
-    Device::PipelineBarrierTransition(commands.List, m_raytracingTarget.Resource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-#else
 
     auto accelStruct = scene.GetAccelerationStructure();
 
@@ -172,7 +115,6 @@ void Renderer::Render(const Camera& camera, Scene& scene)
     barr.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     barr.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
     commands.List->ResourceBarrier(1, &barr);
-    #endif
 
     const auto submission = m_device.SubmitGraphicsCommands(std::move(commands));
 

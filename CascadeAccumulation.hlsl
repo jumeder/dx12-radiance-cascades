@@ -17,7 +17,6 @@ Texture2DArray<float4> higherCascade : register(t0);
 RWTexture2DArray<float4> currentCascade : register(u0);
 SamplerState linearSampler : register(s0);
 
-// TODO move this code to inclusion file
 float4 SingleSample(float3 pixelCoord)
 {
     return higherCascade.SampleLevel(linearSampler, float3(pixelCoord.xy / size.xy, pixelCoord.z), 0);
@@ -28,14 +27,12 @@ float4 SampleHigherCascade(float2 uv, float3 pos)
     uint3 nextCascadeProbeCount = probeCount >> (cascade + 1);
     uint2 hpixelCount = GetPixelCount(cascade + 1);
 
-    // TODO is this correct?
     float3 higherPos = pos * nextCascadeProbeCount;
     higherPos = clamp(higherPos, 0.51f, nextCascadeProbeCount - 0.51f);
     
     float3 t = frac(higherPos) - 0.5;
     float3 interp = t < 0 ? 1 + t : t;
-    float3 ll = t < 0.f ? floor(higherPos) - 1 : floor(higherPos); // TODO clamping
-    // float3 ll = floor(higherPos);
+    float3 ll = t < 0.f ? floor(higherPos) - 1 : floor(higherPos);
 
     float3 pixelCoordll = float3(ll.xy * hpixelCount + uv * hpixelCount, ll.z);
 

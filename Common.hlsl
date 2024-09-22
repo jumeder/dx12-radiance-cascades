@@ -25,8 +25,6 @@ float2 toSpherical(float3 dir)
 
 uint2 GetPixelCount(uint cascade)
 {
-    // TODO verify this
     uint2 pixelCount = uint2(64, 32) << cascade;
-
     return pixelCount;
 }

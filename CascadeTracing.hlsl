@@ -25,11 +25,9 @@ struct RayPayload
 
 float GetEnd(int cascade)
 {
-    const float interval = 0.05f;  
+    const float interval = 0.03125f;
     return (interval * (1 - pow(8, cascade + 1))) / (1 - 8);
 }
-
-// TODO function to compute spherical coords from ray coords and cascade index
 
 [shader("raygeneration")]
 void RayGen()
@@ -54,7 +52,7 @@ void RayGen()
     RayDesc ray;
     ray.Origin = rayStart;
     ray.Direction = rayDir;
-    ray.TMin = 0.01f + start; // TODO these need to be scaled by the true distances between the probes
+    ray.TMin = 0.01f + start;
     ray.TMax = end;
 
     RayPayload payload = { float4(0, 0, 0, 0) };
@@ -62,7 +60,6 @@ void RayGen()
     TraceRay(Scene, 0, ~0, 0, 0, 0, ray, payload);
 
     Cascades[DispatchRaysIndex()] = payload.color;
-   // Cascades[DispatchRaysIndex()] = float4(rayStart, 1);
 }
 
 [shader("closesthit")]
@@ -71,9 +68,6 @@ void RayHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes a
     uint instanceId = InstanceID();
     Instance instance = Instances[instanceId];
     payload.color = float4(instance.Emission.rgb, 0.f);
-    
-    //float3 barycentrics = float3(1 - attr.barycentrics.x - attr.barycentrics.y, attr.barycentrics.x, attr.barycentrics.y);
-    //payload.color = float4(barycentrics, 1);
 }
 
 [shader("miss")]

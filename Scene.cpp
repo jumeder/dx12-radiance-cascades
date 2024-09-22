@@ -27,17 +27,14 @@ void Scene::Update(const ComPtr<ID3D12GraphicsCommandList>& commandList)
 {
     if(m_transformsDirty || m_instanceDataDirty)
     {
-        // TODO is this really necessary?
         D3D12_RANGE writeRange = {0, c_instanceDataSize};
         m_instanceDataCpu->Unmap(0, &writeRange);
 
-        // TODO barriers?
         commandList->CopyResource(m_instanceDataGpu.Get(), m_instanceDataCpu.Get());
         
         m_instanceDataCpu->Map(0, nullptr, (void**)&m_instanceDataPtr);
     }
 
-    // TODO update tlas
     if(m_transformsDirty)
     {
         m_tlas = m_device.CreateTopLevelAccelerationStructure(commandList.Get(), m_tlasBuildData.Get(), (uint32_t)m_modelRefs.size());
@@ -59,7 +56,6 @@ uint32_t Scene::AddInstance(const Model& model, const DirectX::XMMATRIX& transfo
 {
     assert(m_modelRefs.size() < c_instanceCount);
 
-    // TODO support deletion
     const uint32_t instanceId = (uint32_t)m_modelRefs.size();
     m_modelRefs.push_back(&model);
 

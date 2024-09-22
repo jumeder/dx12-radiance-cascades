@@ -2,7 +2,6 @@
 
 #include "Drawing.vs.h"
 #include "Drawing.ps.h"
-#include "Raytracing.h"
 #include "CascadeTracing.h"
 #include "CascadeAccumulation.h"
 #include "DebugCascades.vs.h"
@@ -233,7 +232,6 @@ ComPtr<ID3D12Resource> Device::CreateBottomLevelAccelerationStructure(const Vert
 
     commandList->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
 
-    // TODO this barrier is unnecessary as every submit is fenced
     D3D12_RESOURCE_BARRIER barr;
     barr.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
     barr.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -270,7 +268,6 @@ ComPtr<ID3D12Resource> Device::CreateTopLevelAccelerationStructure(const ComPtr<
         m_tlasScratchSize = scratchSize;
     }
 
-    // TODO can we optimize this allocation?
     const auto ret = CreateBuffer(roundUp(info.ResultDataMaxSizeInBytes, 256), D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS); 
 
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
@@ -285,7 +282,6 @@ ComPtr<ID3D12Resource> Device::CreateTopLevelAccelerationStructure(const ComPtr<
 
     commandList4->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
 
-    // TODO this barrier is unnecessary if our submit is fenced
     D3D12_RESOURCE_BARRIER barr;
     barr.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
     barr.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -689,132 +685,6 @@ Pipeline Device::CreateCascadeDebugPipeline()
     return ret;
 }
 
-State Device::CreateRayTracingPipeline()
-{
-    ComPtr<ID3D12Device5> device;
-    m_device.As(&device);
-    assert(device);
-
-    State ret;
-
-    ComPtr<ID3DBlob> blob;
-    D3D12_ROOT_PARAMETER raytracingConstants;
-    raytracingConstants.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    raytracingConstants.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-    raytracingConstants.Descriptor.RegisterSpace = 0;
-    raytracingConstants.Descriptor.ShaderRegister = 0;
-
-    D3D12_DESCRIPTOR_RANGE as;
-    as.BaseShaderRegister = 0;
-    as.NumDescriptors = 1;
-    as.OffsetInDescriptorsFromTableStart = 0;
-    as.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    as.RegisterSpace = 0;
-    D3D12_ROOT_PARAMETER accelerationStructure;
-    accelerationStructure.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    accelerationStructure.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-    accelerationStructure.DescriptorTable.NumDescriptorRanges = 1;
-    accelerationStructure.DescriptorTable.pDescriptorRanges = &as;
-
-    D3D12_DESCRIPTOR_RANGE instanceRange;
-    instanceRange.BaseShaderRegister = 1;
-    instanceRange.NumDescriptors = 1;
-    instanceRange.OffsetInDescriptorsFromTableStart = 0;
-    instanceRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    instanceRange.RegisterSpace = 0;
-    D3D12_ROOT_PARAMETER instances;
-    instances.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    instances.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-    instances.DescriptorTable.NumDescriptorRanges = 1;
-    instances.DescriptorTable.pDescriptorRanges = &instanceRange;
-
-    D3D12_DESCRIPTOR_RANGE uav;
-    uav.BaseShaderRegister = 0;
-    uav.NumDescriptors = 1;
-    uav.OffsetInDescriptorsFromTableStart = 0;
-    uav.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-    uav.RegisterSpace = 0;
-    D3D12_ROOT_PARAMETER renderTarget;
-    renderTarget.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    renderTarget.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-    renderTarget.DescriptorTable.NumDescriptorRanges = 1;
-    renderTarget.DescriptorTable.pDescriptorRanges = &uav;
-
-    std::array parameters = {raytracingConstants, accelerationStructure, instances, renderTarget};
-    
-    D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-    rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
-    rootSignatureDesc.NumParameters = (UINT)parameters.size();
-    rootSignatureDesc.NumStaticSamplers = 0;
-    rootSignatureDesc.pParameters = parameters.data();
-    rootSignatureDesc.pStaticSamplers = nullptr;
-    D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &blob, nullptr);
-    assert(blob);
-    device->CreateRootSignature(0b1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&ret.RootSignature));
-
-    std::vector<D3D12_STATE_SUBOBJECT> subobjects;
-    subobjects.reserve(10);
-
-    D3D12_EXPORT_DESC rayGen = {L"RayGen", nullptr, D3D12_EXPORT_FLAG_NONE};
-    D3D12_EXPORT_DESC rayHit = {L"RayHit", nullptr, D3D12_EXPORT_FLAG_NONE};
-    D3D12_EXPORT_DESC rayMiss = {L"RayMiss", nullptr, D3D12_EXPORT_FLAG_NONE};
-    std::array exports = {rayGen, rayHit, rayMiss};
-    D3D12_DXIL_LIBRARY_DESC rayLibraryDesc;
-    rayLibraryDesc.DXILLibrary = {Raytracing, sizeof(Raytracing)};
-    rayLibraryDesc.NumExports = (UINT)exports.size();
-    rayLibraryDesc.pExports = exports.data();
-    subobjects.push_back({D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY, &rayLibraryDesc});
-
-    D3D12_HIT_GROUP_DESC hitGroup = {};
-    hitGroup.ClosestHitShaderImport = L"RayHit";
-    hitGroup.HitGroupExport = L"HitGroup";
-    hitGroup.Type = D3D12_HIT_GROUP_TYPE_TRIANGLES;
-    subobjects.push_back({D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP, &hitGroup});
-
-    D3D12_RAYTRACING_SHADER_CONFIG sc;
-    sc.MaxAttributeSizeInBytes = 2 * sizeof(float);
-    sc.MaxPayloadSizeInBytes = 4 * sizeof(float);
-    subobjects.push_back({D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG, &sc});
-
-    D3D12_GLOBAL_ROOT_SIGNATURE globalRootSig;
-    globalRootSig.pGlobalRootSignature = ret.RootSignature.Get();
-    subobjects.push_back({D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE, &globalRootSig});
-
-    D3D12_RAYTRACING_PIPELINE_CONFIG pc;
-    pc.MaxTraceRecursionDepth = 1;
-    subobjects.push_back({D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG, &pc});
-
-    D3D12_STATE_OBJECT_DESC stateDesc;
-    stateDesc.NumSubobjects = (UINT)subobjects.size();
-    stateDesc.pSubobjects = subobjects.data();
-    stateDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
-
-    auto r = device->CreateStateObject(&stateDesc, IID_PPV_ARGS(&ret.Object));
-    assert(ret.Object);
-
-    ComPtr<ID3D12StateObjectProperties> stateObjectProperties;
-    ret.Object.As(&stateObjectProperties);
-    assert(stateObjectProperties);
-
-    const auto rayGenId = stateObjectProperties->GetShaderIdentifier(L"RayGen");
-    const auto rayMissId = stateObjectProperties->GetShaderIdentifier(L"RayMiss");
-    const auto rayHitId = stateObjectProperties->GetShaderIdentifier(L"HitGroup");
-
-    const auto shaderTableSize = 3 * D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT;
-    ret.ShaderTable = CreateBuffer(shaderTableSize, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_NONE, true);
-    ret.RayGenRange = {ret.ShaderTable->GetGPUVirtualAddress(), D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT};
-    ret.RayMissRange = {ret.ShaderTable->GetGPUVirtualAddress() + D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT};
-    ret.RayHitRange = {ret.ShaderTable->GetGPUVirtualAddress() + D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT * 2, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT};
-
-    std::vector<uint8_t> shaderIds(shaderTableSize);
-    std::memcpy(shaderIds.data(), rayGenId, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-    std::memcpy(shaderIds.data() + D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, rayMissId, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-    std::memcpy(shaderIds.data() + D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT * 2, rayHitId, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-    SetResourceData(ret.ShaderTable, *shaderIds.data(), shaderTableSize);
-
-    return ret;
-}
-
 State Device::CreateCascadeTracingPipeline()
 {
     ComPtr<ID3D12Device5> device;
@@ -1029,7 +899,6 @@ Pipeline Device::CreateCascadeAccumulationPipeline()
     return ret;
 }
 
-// TODO make this into a type dependend template
 void Device::SetResourceDataInternal(const ComPtr<ID3D12Resource>& resource, const void* data, uint64_t size)
 {
     void* resourcePtr = nullptr;

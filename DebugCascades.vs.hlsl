@@ -24,7 +24,6 @@ struct VertexOut
 
 VertexOut main(in float3 position : Position, in float3 normal : Normal, in uint cascadeIndexLinear : SV_InstanceID)
 {
-    // TODO use same code as in the other shaders
     uint3 levelResolution = probeCount >> cascade;
 
     uint3 cascadeIndex;

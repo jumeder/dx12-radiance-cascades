@@ -71,9 +71,7 @@ public:
     D3D12_CPU_DESCRIPTOR_HANDLE CreateSampler(const D3D12_SAMPLER_DESC& desc);
 
     Pipeline CreateDrawingPipeline();
-    State CreateRayTracingPipeline();
     State CreateCascadeTracingPipeline();
-    Pipeline CreateCascadeBlurringPipeline();
     Pipeline CreateCascadeAccumulationPipeline();
     Pipeline CreateCascadeDebugPipeline();
 

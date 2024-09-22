@@ -80,7 +80,6 @@ void Application::Run()
 
 void Application::HandleInput(float diffTime)
 {
-    // TODO time difference
     if(glfwGetKey(m_window, GLFW_KEY_W) == GLFW_PRESS)
     {
         m_camera.MoveLocal(0, 0, -m_cameraMoveSpeed * diffTime);
@@ -105,7 +104,7 @@ void Application::HandleInput(float diffTime)
     {
         if (!m_rightKeyPressed)
         {
-            m_currentDebugCascade = std::min(2, m_currentDebugCascade + 1);
+            m_currentDebugCascade = std::min(3, m_currentDebugCascade + 1);
             m_renderer->VisualizeCascade(m_currentDebugCascade);
             m_rightKeyPressed = true;
         }
