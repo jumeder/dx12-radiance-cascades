@@ -25,13 +25,12 @@ float4 SingleSample(float3 pixelCoord)
 
 float4 SampleHigherCascade(float2 uv, float3 pos)
 {
-    // TODO fetch 8 samples
-    // TODO need to clamp to the inside of the cascade
     uint3 nextCascadeProbeCount = probeCount >> (cascade + 1);
     uint2 hpixelCount = GetPixelCount(cascade + 1);
 
     // TODO is this correct?
     float3 higherPos = pos * nextCascadeProbeCount;
+    higherPos = clamp(higherPos, 0.51f, nextCascadeProbeCount - 0.51f);
     
     float3 t = frac(higherPos) - 0.5;
     float3 interp = t < 0 ? 1 + t : t;

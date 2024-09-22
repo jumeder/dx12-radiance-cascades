@@ -25,7 +25,7 @@ struct RayPayload
 
 float GetEnd(int cascade)
 {
-    const float interval = 0.1f;  
+    const float interval = 0.05f;  
     return (interval * (1 - pow(8, cascade + 1))) / (1 - 8);
 }
 

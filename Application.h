@@ -20,7 +20,7 @@ public:
     void Run();
 
 private:
-    void HandleInput();
+    void HandleInput(float diffTime);
 
     GLFWwindow* m_window;
     std::unique_ptr<Renderer> m_renderer;
@@ -40,7 +40,7 @@ private:
     bool m_leftKeyPressed = false;
     double m_lastMouseX = 0.f;
     double m_lastMouseY = 0.f;
-    float m_cameraMoveSpeed = 0.01f;
+    float m_cameraMoveSpeed = 2.f;
     float m_cameraRotSpeed = 0.01f;
     int m_currentDebugCascade = -1;
 };

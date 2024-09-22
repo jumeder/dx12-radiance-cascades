@@ -13,20 +13,19 @@ Application::Application(uint32_t width, uint32_t height)
     m_window = glfwCreateWindow(width, height, "dx12-radiance-casccades", nullptr, nullptr);
     m_renderer = std::make_unique<Renderer>(glfwGetWin32Window(m_window), width, height);
 
-    m_camera.SetPosition(0, 0.5f, 0.f);
+    m_camera.SetPosition(0, 1.f, 4.f);
 
     m_cornell = std::make_unique<Model>("..\\..\\Models\\CornellBox-Original.obj", m_renderer->GetDevice());
     m_sphere = std::make_unique<Model>("..\\..\\Models\\Sphere.glb", m_renderer->GetDevice());
     m_bunny = std::make_unique<Model>("..\\..\\Models\\Bunny.obj", m_renderer->GetDevice());
-
 
     const auto bunnyTransform = DirectX::XMMatrixMultiply(DirectX::XMMatrixScaling(0.3f, 0.3f, 0.3f), DirectX::XMMatrixTranslation(0.3f, 1.1f, 0.3f));
     const auto sphereTransform = DirectX::XMMatrixMultiply(DirectX::XMMatrixScaling(0.01f, 0.01f, 0.01f), DirectX::XMMatrixTranslation(0.f, 1.f, 0));
 
     m_scene = std::make_unique<Scene>(m_renderer->GetDevice());
     m_scene->AddInstance(*m_cornell, DirectX::XMMatrixIdentity(), DirectX::XMVECTOR{0.8f, 0.8f, 0.8f, 1.f}, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f});
-    m_bunnyInstance = m_scene->AddInstance(*m_bunny, bunnyTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{10.f, 5.f, 0.5f, 0.f});
-    m_sphereInstance = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{10.f, 10.f, 10.f, 1.f});
+    m_bunnyInstance = m_scene->AddInstance(*m_bunny, bunnyTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{1.f, 0.1f, 0.f, 0.f});
+    m_sphereInstance = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{20.f, 20.f, 20.f, 1.f});
     //m_sphereInstance2 = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{1.f, 2.f, 10.f, 0.f});
 }
 
@@ -38,10 +37,14 @@ Application::~Application()
 
 void Application::Run()
 {
+    auto lastStart = std::chrono::high_resolution_clock::now();
     while(!glfwWindowShouldClose(m_window))
     {
         glfwPollEvents();
-        HandleInput();
+
+        auto currStart = std::chrono::high_resolution_clock::now();    
+        HandleInput((currStart - lastStart).count() * 1e-9f);
+        lastStart = currStart;
 
         const auto angle = std::chrono::high_resolution_clock::now().time_since_epoch().count() * 1e-9f;
         const float xanim = sin(angle);
@@ -66,27 +69,27 @@ void Application::Run()
     }
 }
 
-void Application::HandleInput()
+void Application::HandleInput(float diffTime)
 {
     // TODO time difference
     if(glfwGetKey(m_window, GLFW_KEY_W) == GLFW_PRESS)
     {
-        m_camera.MoveLocal(0, 0, -m_cameraMoveSpeed);
+        m_camera.MoveLocal(0, 0, -m_cameraMoveSpeed * diffTime);
     }
 
     if(glfwGetKey(m_window, GLFW_KEY_S) == GLFW_PRESS)
     {
-        m_camera.MoveLocal(0, 0, m_cameraMoveSpeed);
+        m_camera.MoveLocal(0, 0, m_cameraMoveSpeed * diffTime);
     }
 
     if(glfwGetKey(m_window, GLFW_KEY_A) == GLFW_PRESS)
     {
-        m_camera.MoveLocal(-m_cameraMoveSpeed, 0, 0);
+        m_camera.MoveLocal(-m_cameraMoveSpeed * diffTime, 0, 0);
     }
 
     if(glfwGetKey(m_window, GLFW_KEY_D) == GLFW_PRESS)
     {
-        m_camera.MoveLocal(m_cameraMoveSpeed, 0, 0);
+        m_camera.MoveLocal(m_cameraMoveSpeed * diffTime, 0, 0);
     }
 
     if (glfwGetKey(m_window, GLFW_KEY_RIGHT) == GLFW_PRESS)

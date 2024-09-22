@@ -29,17 +29,14 @@ float4 SingleSample(float3 pixelCoord)
 
 float4 SampleCascade(float2 uv, float3 pos)
 {
-    // TODO fetch 8 samples
-    // TODO need to clamp to the inside of the cascade
     uint2 hpixelCount = GetPixelCount(0);
 
-    // TODO is this correct?
     float3 higherPos = pos * probeCount;
+    higherPos = clamp(higherPos, 0.51f, probeCount - 0.51f);
 
     float3 t = frac(higherPos) - 0.5;
     float3 interp = t < 0 ? 1 + t : t;
-    float3 ll = t < 0.f ? floor(higherPos) - 1 : floor(higherPos); // TODO clamping
-    // float3 ll = floor(higherPos);
+    float3 ll = t < 0.f ? floor(higherPos) - 1 : floor(higherPos);
 
     float3 pixelCoordll = float3(ll.xy * hpixelCount + uv * hpixelCount, ll.z);
 
@@ -83,11 +80,11 @@ float4 integrateCascades(float3 n, float3 pos)
 
 float4 main(in PixelIn input) : SV_Target
 {
-    float3 cascadePos = (input.WorldPosition - offset) / extends * 0.5 + 0.5;
+    float3 n = normalize(input.Normal);
+    float3 cascadePos = (input.WorldPosition + 0.1 * n - offset) / extends * 0.5 + 0.5;
 
     //float3 v = normalize(CameraPosition - input.WorldPosition);
     float3 l = float3(1.f, 1.f, 1.f);
-    float3 n = normalize(input.Normal);
     
     //return float4(input.Normal, 1);// input.Albedo * max(0.05, dot(n, l) / M_PI) + input.Emission;
     return integrateCascades(n, cascadePos) + input.Emission;
