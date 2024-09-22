@@ -81,11 +81,10 @@ float4 integrateCascades(float3 n, float3 pos)
 float4 main(in PixelIn input) : SV_Target
 {
     float3 n = normalize(input.Normal);
+    // Quick hack to avoid under-surface interpolations
     float3 cascadePos = (input.WorldPosition + 0.1 * n - offset) / extends * 0.5 + 0.5;
 
-    //float3 v = normalize(CameraPosition - input.WorldPosition);
     float3 l = float3(1.f, 1.f, 1.f);
     
-    //return float4(input.Normal, 1);// input.Albedo * max(0.05, dot(n, l) / M_PI) + input.Emission;
-    return integrateCascades(n, cascadePos) + input.Emission;
+    return integrateCascades(n, cascadePos) * input.Albedo + input.Emission;
 }

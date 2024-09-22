@@ -18,15 +18,17 @@ Application::Application(uint32_t width, uint32_t height)
     m_cornell = std::make_unique<Model>("..\\..\\Models\\CornellBox-Original.obj", m_renderer->GetDevice());
     m_sphere = std::make_unique<Model>("..\\..\\Models\\Sphere.glb", m_renderer->GetDevice());
     m_bunny = std::make_unique<Model>("..\\..\\Models\\Bunny.obj", m_renderer->GetDevice());
+    m_teapot = std::make_unique<Model>("..\\..\\Models\\teapot.obj", m_renderer->GetDevice());
 
     const auto bunnyTransform = DirectX::XMMatrixMultiply(DirectX::XMMatrixScaling(0.3f, 0.3f, 0.3f), DirectX::XMMatrixTranslation(0.3f, 1.1f, 0.3f));
     const auto sphereTransform = DirectX::XMMatrixMultiply(DirectX::XMMatrixScaling(0.01f, 0.01f, 0.01f), DirectX::XMMatrixTranslation(0.f, 1.f, 0));
+    const auto teapotTransform = DirectX::XMMatrixMultiply(DirectX::XMMatrixScaling(0.1f, 0.1f, 0.1f), DirectX::XMMatrixTranslation(-0.7f, 1.3f, -0.7f));
 
     m_scene = std::make_unique<Scene>(m_renderer->GetDevice());
-    m_scene->AddInstance(*m_cornell, DirectX::XMMatrixIdentity(), DirectX::XMVECTOR{0.8f, 0.8f, 0.8f, 1.f}, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f});
-    m_bunnyInstance = m_scene->AddInstance(*m_bunny, bunnyTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{1.f, 0.1f, 0.f, 0.f});
+    m_scene->AddInstance(*m_cornell, DirectX::XMMatrixIdentity(), DirectX::XMVECTOR{1.f, 1.f, 1.f, 1.f}, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f});
+    m_bunnyInstance = m_scene->AddInstance(*m_bunny, bunnyTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{1.f, 0.1f, 0.01f, 0.f});
     m_sphereInstance = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{20.f, 20.f, 20.f, 1.f});
-    //m_sphereInstance2 = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{1.f, 2.f, 10.f, 0.f});
+    m_teapotInstance = m_scene->AddInstance(*m_teapot, teapotTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{0.01f, 0.25f, 1.f, 1.f});
 }
 
 Application::~Application()
@@ -51,7 +53,7 @@ void Application::Run()
         const float zanim = cos(angle);
 
         const auto bunnyTransform = DirectX::XMMatrixMultiply(
-            DirectX::XMMatrixRotationAxis({1.f, 1.f, -1.f, 0.f}, angle),
+            DirectX::XMMatrixRotationAxis({1.f, 1.f, -1.f, 0.f}, angle * 2),
             DirectX::XMMatrixMultiply(
                 DirectX::XMMatrixScaling(0.3f, 0.3f, 0.3f), 
                 DirectX::XMMatrixTranslation(0.3f, 1.1f, 0.3f)
@@ -59,11 +61,18 @@ void Application::Run()
         );
         const auto sphereTransform = DirectX::XMMatrixMultiply(
             DirectX::XMMatrixScaling(0.001f, 0.001f, 0.001f), 
-            DirectX::XMMatrixTranslation(xanim * 0.9f, 0.8f, zanim * 0.9f)
+            DirectX::XMMatrixTranslation(xanim, 0.8f, zanim)
         );
+        const float teapotAnim = sin(angle * 0.3f);
+        const auto teapotTransform = DirectX::XMMatrixMultiply(
+                DirectX::XMMatrixScaling(0.1f, 0.1f, 0.1f), 
+                DirectX::XMMatrixTranslation(-0.7f, 1.3f + teapotAnim * 0.3f, -0.7f)
+        );
+
 
         m_scene->SetInstanceTransform(m_sphereInstance, sphereTransform);
         m_scene->SetInstanceTransform(m_bunnyInstance, bunnyTransform);
+        m_scene->SetInstanceTransform(m_teapotInstance, teapotTransform);
 
         m_renderer->Render(m_camera, *m_scene);
     }

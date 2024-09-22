@@ -36,6 +36,6 @@ VertexOut main(in VertexIn input)
     output.Emission = instance.Emission;
     output.Normal = normalize(mul(instance.Transform, float4(input.Normal, 0))).xyz;
     output.WorldPosition = mul(instance.Transform, float4(input.Position, 1)).xyz;
-    output.Position = mul(ViewProjection, float4(output.WorldPosition , 1));
+    output.Position = mul(ViewProjection, float4(output.WorldPosition, 1));
     return output;
 }

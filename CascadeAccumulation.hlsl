@@ -72,11 +72,21 @@ void main(in uint3 index : SV_DispatchThreadId)
 
     float2 uv = (float2(index.xy) - float2(index3d.xy * pixelCount) + 0.5) / float2(pixelCount);
     float3 pos = float3(index3d + 0.5) / float3(levelResolution);
+/*
+    float gauss[] = { 1, 2, 1, 2, 4, 2, 1, 2, 1 };
+
+    int i = 0;
+    float4 nextLevelRad = 0.f;
+    for (float x = -1.f; x <= 1.f; ++x)
+        for (float y = -1.f; y <= 1.f; ++y)
+        {
+            nextLevelRad += gauss[i++] * SampleHigherCascade(uv + float2(x, y) / pixelCount, pos);
+        }
+
+    nextLevelRad /= 16.f;*/
 
     float4 nextLevelRad = SampleHigherCascade(uv, pos);
     float4 currLevelRad = currentCascade[index];
 
     currentCascade[index] = float4(currLevelRad.rgb + currLevelRad.a * nextLevelRad.rgb, currLevelRad.a * nextLevelRad.a);
-    //currentCascade[index] = currLevelRad.aaaa;
-    //currentCascade[index] = float4(pos, 1.f);
 }

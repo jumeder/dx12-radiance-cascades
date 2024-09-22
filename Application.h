@@ -29,11 +29,12 @@ private:
     std::unique_ptr<Model> m_bunny;
     std::unique_ptr<Model> m_cornell;
     std::unique_ptr<Model> m_sphere;
+    std::unique_ptr<Model> m_teapot;
     std::unique_ptr<Scene> m_scene;
 
     uint32_t m_bunnyInstance;
     uint32_t m_sphereInstance;
-    uint32_t m_sphereInstance2;
+    uint32_t m_teapotInstance;
 
     bool m_mouseDown = false;
     bool m_rightKeyPressed = false;

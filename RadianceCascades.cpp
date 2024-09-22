@@ -7,8 +7,8 @@ RadianceCascades::RadianceCascades(Device& device, const CascadeResultion& resol
     , m_offset(offset)
     , m_count(cascadeCount)
 {
-    constexpr auto cascadePixelsX = 32;
-    constexpr auto cascadePixelsY = 16;
+    constexpr auto cascadePixelsX = 64;
+    constexpr auto cascadePixelsY = 32;
 
     m_cascadePixelsX = cascadePixelsX * resolution.x;
     m_cascadePixelsY = cascadePixelsY * resolution.y;
