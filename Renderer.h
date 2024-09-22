@@ -18,6 +18,8 @@ public:
 
     inline auto& GetDevice() { return m_device; }
 
+    inline void VisualizeCascade(int cascadeIndex) { m_debugCascade = cascadeIndex; }
+
 private:
     static constexpr auto c_backBufferCount = 2;
     struct ViewedResource
@@ -57,4 +59,5 @@ private:
     std::unique_ptr<Model> m_debugSphere;
     Pipeline m_debugCascadesPipeline;
     ComPtr<ID3D12Resource> m_debugCascadesConstants;
+    int m_debugCascade = -1;
 };

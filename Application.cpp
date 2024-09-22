@@ -15,15 +15,19 @@ Application::Application(uint32_t width, uint32_t height)
 
     m_camera.SetPosition(0, 0.5f, 0.f);
 
-    m_sponza = std::make_unique<Model>("d:\\Scenes\\Test\\Sponza.fbx", m_renderer->GetDevice());
-    m_sphere = std::make_unique<Model>("d:\\Scenes\\Test\\Sphere.glb", m_renderer->GetDevice());
+    m_cornell = std::make_unique<Model>("..\\..\\Models\\CornellBox-Original.obj", m_renderer->GetDevice());
+    m_sphere = std::make_unique<Model>("..\\..\\Models\\Sphere.glb", m_renderer->GetDevice());
+    m_bunny = std::make_unique<Model>("..\\..\\Models\\Bunny.obj", m_renderer->GetDevice());
 
+
+    const auto bunnyTransform = DirectX::XMMatrixMultiply(DirectX::XMMatrixScaling(0.3f, 0.3f, 0.3f), DirectX::XMMatrixTranslation(0.3f, 1.1f, 0.3f));
     const auto sphereTransform = DirectX::XMMatrixMultiply(DirectX::XMMatrixScaling(0.01f, 0.01f, 0.01f), DirectX::XMMatrixTranslation(0.f, 1.f, 0));
 
     m_scene = std::make_unique<Scene>(m_renderer->GetDevice());
-    m_scene->AddInstance(*m_sponza, DirectX::XMMatrixScaling(0.01f, 0.01f, 0.01f), DirectX::XMVECTOR{0.f, 0.5f, 0.5f, 1.f}, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f});
+    m_scene->AddInstance(*m_cornell, DirectX::XMMatrixIdentity(), DirectX::XMVECTOR{0.8f, 0.8f, 0.8f, 1.f}, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f});
+    m_bunnyInstance = m_scene->AddInstance(*m_bunny, bunnyTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{10.f, 5.f, 0.5f, 0.f});
     m_sphereInstance = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{10.f, 10.f, 10.f, 1.f});
-    m_sphereInstance2 = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{0.f, 0.f, 0.f, 0.f});
+    //m_sphereInstance2 = m_scene->AddInstance(*m_sphere, sphereTransform, DirectX::XMVECTOR{0.f, 0.f, 0.f, 1.f}, DirectX::XMVECTOR{1.f, 2.f, 10.f, 0.f});
 }
 
 Application::~Application()
@@ -39,18 +43,24 @@ void Application::Run()
         glfwPollEvents();
         HandleInput();
 
-        const float anim = sin(std::chrono::high_resolution_clock::now().time_since_epoch().count() * 1e-9f);
+        const auto angle = std::chrono::high_resolution_clock::now().time_since_epoch().count() * 1e-9f;
+        const float xanim = sin(angle);
+        const float zanim = cos(angle);
 
+        const auto bunnyTransform = DirectX::XMMatrixMultiply(
+            DirectX::XMMatrixRotationAxis({1.f, 1.f, -1.f, 0.f}, angle),
+            DirectX::XMMatrixMultiply(
+                DirectX::XMMatrixScaling(0.3f, 0.3f, 0.3f), 
+                DirectX::XMMatrixTranslation(0.3f, 1.1f, 0.3f)
+            )
+        );
         const auto sphereTransform = DirectX::XMMatrixMultiply(
-            DirectX::XMMatrixScaling(0.01f, 0.01f, 0.01f), 
-            DirectX::XMMatrixTranslation(anim * 5.f, 6.f, 0)
+            DirectX::XMMatrixScaling(0.001f, 0.001f, 0.001f), 
+            DirectX::XMMatrixTranslation(xanim * 0.9f, 0.8f, zanim * 0.9f)
         );
-        const auto sphereTransform2 = DirectX::XMMatrixMultiply(
-            DirectX::XMMatrixScaling(0.005f, 0.005f, 0.005f), 
-            DirectX::XMMatrixTranslation(3.f, 4.f, 0.5f)
-        );
+
         m_scene->SetInstanceTransform(m_sphereInstance, sphereTransform);
-        m_scene->SetInstanceTransform(m_sphereInstance2, sphereTransform2);
+        m_scene->SetInstanceTransform(m_bunnyInstance, bunnyTransform);
 
         m_renderer->Render(m_camera, *m_scene);
     }
@@ -78,6 +88,30 @@ void Application::HandleInput()
     {
         m_camera.MoveLocal(m_cameraMoveSpeed, 0, 0);
     }
+
+    if (glfwGetKey(m_window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+    {
+        if (!m_rightKeyPressed)
+        {
+            m_currentDebugCascade = std::min(2, m_currentDebugCascade + 1);
+            m_renderer->VisualizeCascade(m_currentDebugCascade);
+            m_rightKeyPressed = true;
+        }
+    }
+    else
+        m_rightKeyPressed = false;
+
+    if(glfwGetKey(m_window, GLFW_KEY_LEFT) == GLFW_PRESS)
+    {
+        if (!m_leftKeyPressed)
+        {
+            m_currentDebugCascade = std::max(-1, m_currentDebugCascade - 1);
+            m_renderer->VisualizeCascade(m_currentDebugCascade);
+            m_leftKeyPressed = true;
+        }
+    }
+    else
+        m_leftKeyPressed = false;
 
     double currMouseX, currMouseY;
     glfwGetCursorPos(m_window, &currMouseX, &currMouseY);

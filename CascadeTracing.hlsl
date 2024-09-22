@@ -1,6 +1,5 @@
 #include "Common.hlsl"
 
-// TODO refactor
 cbuffer Constants : register(b0)
 {
     uint cascade;
@@ -26,7 +25,7 @@ struct RayPayload
 
 float GetEnd(int cascade)
 {
-    const float interval = 1.f;  
+    const float interval = 0.1f;  
     return (interval * (1 - pow(8, cascade + 1))) / (1 - 8);
 }
 
@@ -60,7 +59,7 @@ void RayGen()
 
     RayPayload payload = { float4(0, 0, 0, 0) };
 
-    TraceRay(Scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 0, 0, ray, payload);
+    TraceRay(Scene, 0, ~0, 0, 0, 0, ray, payload);
 
     Cascades[DispatchRaysIndex()] = payload.color;
    // Cascades[DispatchRaysIndex()] = float4(rayStart, 1);

@@ -7,8 +7,8 @@ RadianceCascades::RadianceCascades(Device& device, const CascadeResultion& resol
     , m_offset(offset)
     , m_count(cascadeCount)
 {
-    constexpr auto cascadePixelsX = 8;
-    constexpr auto cascadePixelsY = 4;
+    constexpr auto cascadePixelsX = 32;
+    constexpr auto cascadePixelsY = 16;
 
     m_cascadePixelsX = cascadePixelsX * resolution.x;
     m_cascadePixelsY = cascadePixelsY * resolution.y;
@@ -97,7 +97,6 @@ const std::vector<D3D12_GPU_DESCRIPTOR_HANDLE>& RadianceCascades::Generate(const
     commandList->SetComputeRootSignature(m_cascadeAccumulationPipeline.RootSignature.Get());
     commandList->SetComputeRootConstantBufferView(1, m_tracingConstants->GetGPUVirtualAddress());
 
-    assert(m_count > 1);
     for (int i = m_count - 2; i >= 0; --i)
     {
         Device::PipelineBarrierTransition(commandList, m_cascades[i + 1], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);

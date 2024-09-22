@@ -3,7 +3,7 @@
 #include "Scene.h"
 
 Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
-    : m_radianceCascades(m_device, {16, 16, 16}, {14.f, 8.f, 8.f}, {0.f, 6.f, 0.f}, 4)
+    : m_radianceCascades(m_device, {32, 32, 32}, {1.f, 1.f, 1.f}, {0.f, 1.f, 0.f}, 3)
     , m_width(width)
     , m_height(height)
 {
@@ -144,29 +144,30 @@ void Renderer::Render(const Camera& camera, Scene& scene)
 
     scene.Draw(commands.List);
 
-#if 0
-    struct
+    if(m_debugCascade >= 0)
     {
-        DirectX::XMMATRIX vp;
-        DirectX::XMMATRIX model;
-        uint32_t cascade;
-    } debugConstants;
-    debugConstants.vp = cameraConstants.viewProjection;
-    debugConstants.model = DirectX::XMMatrixScaling(0.005f, 0.005f, 0.005f);
-    debugConstants.cascade = 0;
+        struct
+        {
+            DirectX::XMMATRIX vp;
+            DirectX::XMMATRIX model;
+            uint32_t cascade;
+        } debugConstants;
+        debugConstants.vp = cameraConstants.viewProjection;
+        debugConstants.model = DirectX::XMMatrixScaling(0.005f, 0.005f, 0.005f);
+        debugConstants.cascade = m_debugCascade;
 
-    Device::SetResourceData(m_debugCascadesConstants, debugConstants);
+        Device::SetResourceData(m_debugCascadesConstants, debugConstants);
 
-    commands.List->SetPipelineState(m_debugCascadesPipeline.State.Get());
-    commands.List->SetGraphicsRootSignature(m_debugCascadesPipeline.RootSignature.Get());
-    commands.List->SetGraphicsRootConstantBufferView(0, m_debugCascadesConstants->GetGPUVirtualAddress());
-    commands.List->SetGraphicsRootConstantBufferView(1, m_radianceCascades.GetConstants()->GetGPUVirtualAddress());
-    commands.List->SetGraphicsRootDescriptorTable(2, cascadesHandles[debugConstants.cascade]);
+        commands.List->SetPipelineState(m_debugCascadesPipeline.State.Get());
+        commands.List->SetGraphicsRootSignature(m_debugCascadesPipeline.RootSignature.Get());
+        commands.List->SetGraphicsRootConstantBufferView(0, m_debugCascadesConstants->GetGPUVirtualAddress());
+        commands.List->SetGraphicsRootConstantBufferView(1, m_radianceCascades.GetConstants()->GetGPUVirtualAddress());
+        commands.List->SetGraphicsRootDescriptorTable(2, cascadesHandles[debugConstants.cascade]);
 
-    auto& res = m_radianceCascades.GetResolution();
-    const auto div = 1 << debugConstants.cascade;
-    m_debugSphere->DrawInstanced(commands.List, res.x * res.y * res.z / (div * div * div));
-#endif
+        auto& res = m_radianceCascades.GetResolution();
+        const auto div = 1 << debugConstants.cascade;
+        m_debugSphere->DrawInstanced(commands.List, res.x * res.y * res.z / (div * div * div));
+    }
 
     barr.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     barr.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;

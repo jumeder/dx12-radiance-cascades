@@ -10,6 +10,9 @@ Model::Model(const std::string& filepath, Device& device)
     importer.ReadFile(filepath, aiProcess_Triangulate | aiProcess_GenNormals);
     const auto scene = importer.GetScene();
 
+    if(!scene)
+        throw std::exception("Failed to load model!");
+
     std::vector<float> vertices;
     std::vector<float> normals;
     std::vector<uint32_t> indices;

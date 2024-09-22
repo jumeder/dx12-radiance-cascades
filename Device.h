@@ -73,6 +73,7 @@ public:
     Pipeline CreateDrawingPipeline();
     State CreateRayTracingPipeline();
     State CreateCascadeTracingPipeline();
+    Pipeline CreateCascadeBlurringPipeline();
     Pipeline CreateCascadeAccumulationPipeline();
     Pipeline CreateCascadeDebugPipeline();
 

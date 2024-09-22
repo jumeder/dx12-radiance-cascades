@@ -84,7 +84,6 @@ float4 integrateCascades(float3 n, float3 pos)
 float4 main(in PixelIn input) : SV_Target
 {
     float3 cascadePos = (input.WorldPosition - offset) / extends * 0.5 + 0.5;
-    // TODO need to transform input normal
 
     //float3 v = normalize(CameraPosition - input.WorldPosition);
     float3 l = float3(1.f, 1.f, 1.f);
