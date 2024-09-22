@@ -1,0 +1,4 @@
+Coarse implementation of Radiance Cascades in 3D, based on the work of Alexander Sannikov.
+
+For first-time project setup run Bootstrap.ps1. That will fetch vcpkg and initialize everything. 
+Afterwards just use your cmake workflow of choice to generate, compile and execute.
